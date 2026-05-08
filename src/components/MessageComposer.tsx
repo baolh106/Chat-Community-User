@@ -1,0 +1,28 @@
+interface MessageComposerProps {
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSendMessage: () => void;
+  canSend: boolean;
+}
+
+export const MessageComposer = ({
+  draft,
+  onDraftChange,
+  onSendMessage,
+  canSend,
+}: MessageComposerProps) => {
+  return (
+    <div className="composer">
+      <textarea
+        value={draft}
+        onChange={(e) => onDraftChange(e.target.value)}
+        placeholder="Nhập tin nhắn của bạn..."
+      />
+      <div className="composer-actions">
+        <button onClick={onSendMessage} disabled={!canSend}>
+          Gửi
+        </button>
+      </div>
+    </div>
+  );
+};
