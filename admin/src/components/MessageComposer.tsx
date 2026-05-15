@@ -16,6 +16,12 @@ export const MessageComposer = ({
       <textarea
         value={draft}
         onChange={(e) => onDraftChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey && canSend) {
+            e.preventDefault();
+            onSendMessage();
+          }
+        }}
         placeholder="Nhập tin nhắn của bạn..."
       />
       <div className="composer-actions">

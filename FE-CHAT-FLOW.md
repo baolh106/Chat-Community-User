@@ -210,9 +210,25 @@ Do backend tự tạo `userId` mới với suffix unique mỗi lần gọi `/api
 
 ---
 
-## 10. Admin flow (nếu FE cần triển khai admin)
+## 10. Admin flow
 
-### 10.1 Join admin
+Admin sử dụng giao diện riêng để quản lý các cuộc trò chuyện và hỗ trợ người dùng ẩn danh.
+
+### 10.1 Xác thực Admin
+
+Khác với User (dùng `/api/auth/start`), Admin cần đăng nhập bằng tài khoản được khởi tạo trước trong hệ thống.
+- **Endpoint**: `POST /api/auth/admin/login`
+- **Body JSON**:
+  ```json
+  {
+    "password": "<admin_password>"
+  }
+  ```
+- **Response**: Trả về `accessToken` có chứa `role: "admin"`.
+
+### 10.2 Đăng ký Admin Socket
+
+Sau khi kết nối Socket.IO thành công với token của Admin, FE phải emit event để server đưa socket vào room quản trị:
 
 ```ts
 socket.emit("admin:join");
@@ -223,13 +239,34 @@ socket.emit("admin:join");
 - `admin:joined`
   - `ok: true`
   - `userIds`: danh sách userId đang online
+  - `history`: Object chứa lịch sử tin nhắn của từng user online dưới dạng `{ [userId: string]: Message[] }`
 - `admin:join_denied`
   - `ok: false`
   - `reason`
 
-### 10.3 Nhận tin nhắn
+### 10.3 Đồng bộ lịch sử (Sync History)
 
-Admin cũng nhận `message:new` khi có tin nhắn mới.
+Khi Admin mới đăng nhập hoặc load lại trang, các box chat cần hiển thị lại nội dung hội thoại đang diễn ra.
+
+**Cơ chế đồng bộ:**
+Server tự động trả về toàn bộ tin nhắn trong cache của tất cả User đang online thông qua field `history` trong event `admin:joined`. FE không cần gọi thêm API REST để lấy lịch sử ban đầu.
+
+**API dự phòng:**
+Trong trường hợp cần lấy lại dữ liệu của một user cụ thể (ví dụ: refresh thủ công), FE có thể gọi `GET /api/message/cache/:userId`.
+
+### 10.4 Gửi và Nhận tin nhắn
+
+- **Nhận tin nhắn**: Admin lắng nghe event `message:new`. Dựa vào trường `sender` để biết tin nhắn từ User nào.
+- **Gửi tin nhắn**: Admin dùng chung event `message:send` như User, nhưng truyền `receiver` là `userId` của khách hàng.
+
+> **Lưu ý**: Chỉ khi session bị "finalize" (sau 30s user offline), tin nhắn mới được chuyển từ Redis vào Database. Lúc này session đó coi như kết thúc.
+
+```ts
+socket.emit("message:send", {
+  content: "Chào bạn, tôi là Admin. Tôi có thể giúp gì cho bạn?",
+  receiver: "userId-cua-khach-hang"
+});
+```
 
 ---
 

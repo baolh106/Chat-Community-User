@@ -15,7 +15,11 @@ export type SocketPayload = {
 export type ChatStatus = 'idle' | 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
 export type AuthResponse = {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
+  data: {
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+  };
+  message: string;
+  success: boolean;
 };

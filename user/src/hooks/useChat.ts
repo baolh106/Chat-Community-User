@@ -104,20 +104,14 @@ export const useChat = (): UseChatReturn => {
     });
 
     socket.on('message:new', (message: Message) => {
+      // Bỏ qua nếu tin nhắn do chính mình gửi (đã được thêm ở sendMessage)
+      if (message.sender === userIdRef.current) return;
+
       setMessages((prev) => [...prev, message]);
     });
 
     socket.on('message:sent', () => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          content: draftRef.current,
-          sender: userIdRef.current || 'user',
-          receiver: 'admin',
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-      setDraft('');
+      // Server đã nhận được tin nhắn
     });
 
     socket.on('message:error', (payload: SocketPayload) => {
@@ -141,7 +135,7 @@ export const useChat = (): UseChatReturn => {
 
     try {
       const data = await api.startSession(nickname.trim());
-      const token = data.accessToken;
+      const token = data.data.accessToken;
       if (!token) {
         throw new Error('Không nhận được accessToken');
       }
@@ -156,12 +150,28 @@ export const useChat = (): UseChatReturn => {
   };
 
   const sendMessage = () => {
-    if (!socketRef.current || !canSend) return;
+    const content = draftRef.current.trim();
+    if (!socketRef.current?.connected || !content) return;
+
+    // Guard: Xóa ngay lập tức để tránh gửi lặp khi render chưa kịp đáp ứng
+    draftRef.current = '';
+    setDraft('');
 
     socketRef.current.emit('message:send', {
-      content: draft.trim(),
+      content,
       receiver: 'admin',
     });
+
+    // Optimistic UI: Hiển thị ngay lập tức
+    setMessages((prev) => [
+      ...prev,
+      {
+        content,
+        sender: userId || 'user',
+        receiver: 'admin',
+        createdAt: new Date().toISOString(),
+      },
+    ]);
     setDraft('');
   };
 
