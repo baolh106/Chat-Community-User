@@ -1,27 +1,32 @@
 interface LoginPanelProps {
-  nickname: string;
-  onNicknameChange: (value: string) => void;
-  onStartSession: () => void;
+  password: string;
+  onPasswordChange: (value: string) => void;
+  onLogin: () => void;
   error: string | null;
 }
 
 export const LoginPanel = ({
-  nickname,
-  onNicknameChange,
-  onStartSession,
+  password,
+  onPasswordChange,
+  onLogin,
   error,
 }: LoginPanelProps) => {
   return (
     <div className="login-panel">
-      <label htmlFor="nickname">Nickname của bạn</label>
+      <h2>Admin Login</h2>
+      <p>Nhập mật khẩu</p>
       <input
-        id="nickname"
-        value={nickname}
-        onChange={(e) => onNicknameChange(e.target.value)}
-        placeholder="Nhập nickname..."
+        type="password"
+        placeholder="Nhập mật khẩu quản trị viên..."
+        value={password}
+        onChange={(e) => onPasswordChange(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && onLogin()}
+        style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', marginBottom: '10px' }}
       />
-      <button onClick={onStartSession}>Bắt đầu chat</button>
-      {error && <div className="error-box">{error}</div>}
+      {error && <p className="error-box">{error}</p>}
+      <button onClick={onLogin} className="login-button" style={{ width: '100%' }}>
+        Đăng nhập
+      </button>
     </div>
   );
 };

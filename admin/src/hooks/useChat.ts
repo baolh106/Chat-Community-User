@@ -102,7 +102,7 @@ export const useChat = (): UseChatReturn => {
 
     socket.on('connect_error', (err: Error) => {
       console.error('connect_error', err);
-      setError('Kết nối Socket thất bại. Kiểm tra token hoặc backend.');
+      setError('Fail connection.');
       setStatus('error');
     });
 

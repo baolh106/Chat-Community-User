@@ -1,31 +1,7 @@
 import { useChat } from '../hooks/useChat';
 import { ChatHeader } from './ChatHeader';
 import { ChatPanel } from './ChatPanel';
-
-// Tạo một AdminLoginPanel đơn giản thay vì dùng chung của User
-const AdminLoginPanel = ({ password, onPasswordChange, onLogin, error }: { 
-  password: string; 
-  onPasswordChange: (v: string) => void; 
-  onLogin: () => void; 
-  error: string | null 
-}) => (
-  <div className="login-panel">
-    <h2>Admin Login</h2>
-    <p>Nhập mật khẩu quản trị để tiếp tục</p>
-    <input
-      type="password"
-      placeholder="Nhập mật khẩu quản trị viên..."
-      value={password}
-      onChange={(e) => onPasswordChange(e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && onLogin()}
-      style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', marginBottom: '10px' }}
-    />
-    {error && <p className="error-box">{error}</p>}
-    <button onClick={onLogin} className="login-button" style={{ width: '100%' }}>
-      Đăng nhập hệ thống
-    </button>
-  </div>
-);
+import { LoginPanel } from './LoginPanel';
 
 export const AdminPage = () => {
   const {
@@ -59,7 +35,7 @@ export const AdminPage = () => {
       <ChatHeader status={statusText} statusClass={status} />
       
       {isLoggingIn ? (
-        <AdminLoginPanel
+        <LoginPanel
           password={password}
           onPasswordChange={setPassword}
           onLogin={startSession}

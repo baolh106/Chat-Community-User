@@ -17,6 +17,7 @@ export const LoginPanel = ({
       <input
         id="nickname"
         value={nickname}
+        style={{ marginBottom: '10px' }}
         onChange={(e) => onNicknameChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onStartSession()}
         placeholder="Nhập nickname..."

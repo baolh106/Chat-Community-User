@@ -29,10 +29,7 @@ export const ChatPanel = ({
     <div className="chat-panel">
       <div className="session-info">
         <div>
-          <strong>Nickname:</strong> {sessionNickname}
-        </div>
-        <div>
-          <strong>UserId:</strong> {userId ?? 'Đang chờ...'}
+          <strong>ID:</strong> {userId ?? 'Đang chờ...'}
         </div>
         <button className="small-button" onClick={onResetSession}>
           Bắt đầu lại
