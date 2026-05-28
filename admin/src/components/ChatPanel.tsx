@@ -6,9 +6,13 @@ interface ChatPanelProps {
   userId: string;
   messages: Message[];
   draft: string;
+  selectedFile: File | null;
+  isSending: boolean;
   error: string | null;
   onDraftChange: (value: string) => void;
-  onSendMessage: () => void;
+  onFileChange: (file: File | null) => void;
+  onClearAttachment: () => void;
+  onSendMessage: () => void | Promise<void>;
   onResetSession: () => void;
   canSend: boolean;
 }
@@ -17,8 +21,12 @@ export const ChatPanel = ({
   userId,
   messages,
   draft,
+  selectedFile,
+  isSending,
   error,
   onDraftChange,
+  onFileChange,
+  onClearAttachment,
   onSendMessage,
   onResetSession,
   canSend,
@@ -36,7 +44,11 @@ export const ChatPanel = ({
 
       <MessageComposer
         draft={draft}
+        selectedFile={selectedFile}
+        isSending={isSending}
         onDraftChange={onDraftChange}
+        onFileChange={onFileChange}
+        onClearAttachment={onClearAttachment}
         onSendMessage={onSendMessage}
         canSend={canSend}
       />

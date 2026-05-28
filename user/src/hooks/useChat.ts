@@ -2,10 +2,66 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { createSocket } from '../utils/socket';
 import { api } from '../utils/api';
-import type { Message, SocketPayload, ChatStatus } from '../types';
+import type { Message, SocketPayload, ChatStatus, SocketFilePayload } from '../types';
+
+const MAX_ATTACHMENT_SIZE_MB = 10;
+const MAX_ATTACHMENT_SIZE = MAX_ATTACHMENT_SIZE_MB * 1024 * 1024;
+
+const toBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+const isImageFile = (file: File) => file.type.startsWith('image/');
+
+const mapMessageError = (reason?: string) => {
+  if (reason === 'file_too_large') return `File vuot qua gioi han ${MAX_ATTACHMENT_SIZE_MB}MB`;
+  if (reason === 'invalid_file_payload') return 'File dinh kem khong hop le';
+  if (reason === 'message content or file is required') return 'Nhap noi dung hoac chon file de gui';
+  if (reason === 'invalid_payload') return 'Thieu nguoi nhan tin nhan';
+  if (reason === 'unauthorized') return 'Phien dang nhap khong hop le';
+  return reason || 'Gui message that bai';
+};
+
+const upsertMessage = (messages: Message[], nextMessage: Message) => {
+  const duplicateIndex = messages.findIndex(
+    (message) =>
+      message.createdAt === nextMessage.createdAt &&
+      message.sender === nextMessage.sender &&
+      message.receiver === nextMessage.receiver
+  );
+  if (duplicateIndex >= 0) {
+    const next = [...messages];
+    next[duplicateIndex] = nextMessage;
+    return next;
+  }
+
+  let optimisticIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      message.sender === nextMessage.sender &&
+      message.receiver === nextMessage.receiver &&
+      message.content === nextMessage.content &&
+      message.fileName === nextMessage.fileName
+    ) {
+      optimisticIndex = index;
+      break;
+    }
+  }
+  if (optimisticIndex >= 0 && messages[optimisticIndex].fileURL?.startsWith('blob:')) {
+    const next = [...messages];
+    next[optimisticIndex] = nextMessage;
+    return next;
+  }
+
+  return [...messages, nextMessage];
+};
 
 interface UseChatReturn {
-  // State
   nickname: string;
   sessionNickname: string;
   status: ChatStatus;
@@ -13,15 +69,17 @@ interface UseChatReturn {
   userId: string | null;
   messages: Message[];
   draft: string;
+  selectedFile: File | null;
+  isSending: boolean;
   error: string | null;
   canSend: boolean;
   statusText: string;
-
-  // Actions
   setNickname: (value: string) => void;
   setDraft: (value: string) => void;
+  setSelectedFile: (file: File | null) => void;
+  clearAttachment: () => void;
   startSession: () => Promise<void>;
-  sendMessage: () => void;
+  sendMessage: () => Promise<void>;
   resetSession: () => void;
 }
 
@@ -34,25 +92,39 @@ export const useChat = (): UseChatReturn => {
   const [userId, setUserId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
+  const [selectedFileState, setSelectedFileState] = useState<File | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const draftRef = useRef(draft);
+  const selectedFileRef = useRef<File | null>(selectedFileState);
+  const isSendingRef = useRef(isSending);
   const userIdRef = useRef(userId);
 
-  const canSend = Boolean(socketConnected && userId && draft.trim().length > 0);
+  const canSend = Boolean(
+    socketConnected && userId && !isSending && (draft.trim().length > 0 || selectedFileState)
+  );
 
   const statusText = useMemo(() => {
-    if (status === 'connecting') return 'Đang kết nối...';
-    if (status === 'connected') return 'Đã kết nối';
-    if (status === 'disconnected') return 'Mất kết nối';
-    if (status === 'error') return 'Lỗi kết nối';
-    return 'Chưa đăng nhập';
+    if (status === 'connecting') return 'Dang ket noi...';
+    if (status === 'connected') return 'Da ket noi';
+    if (status === 'disconnected') return 'Mat ket noi';
+    if (status === 'error') return 'Loi ket noi';
+    return 'Chua dang nhap';
   }, [status]);
 
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+
+  useEffect(() => {
+    selectedFileRef.current = selectedFileState;
+  }, [selectedFileState]);
+
+  useEffect(() => {
+    isSendingRef.current = isSending;
+  }, [isSending]);
 
   useEffect(() => {
     userIdRef.current = userId;
@@ -100,22 +172,19 @@ export const useChat = (): UseChatReturn => {
     });
 
     socket.on('user:join_denied', (payload: SocketPayload) => {
-      setError(payload.reason || 'Join bị từ chối');
+      setError(payload.reason || 'Join bi tu choi');
     });
 
     socket.on('message:new', (message: Message) => {
-      // Bỏ qua nếu tin nhắn do chính mình gửi (đã được thêm ở sendMessage)
-      if (message.sender === userIdRef.current) return;
-
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) => upsertMessage(prev, message));
     });
 
     socket.on('message:sent', () => {
-      // Server đã nhận được tin nhắn
+      // Server accepted the message.
     });
 
     socket.on('message:error', (payload: SocketPayload) => {
-      setError(payload.reason || 'Gửi message thất bại');
+      setError(mapMessageError(payload.reason));
     });
 
     return () => {
@@ -124,9 +193,23 @@ export const useChat = (): UseChatReturn => {
     };
   }, [accessToken]);
 
+  const setSelectedFile = (file: File | null) => {
+    if (file && file.size > MAX_ATTACHMENT_SIZE) {
+      setError(`File vuot qua gioi han ${MAX_ATTACHMENT_SIZE_MB}MB`);
+      return;
+    }
+
+    setError(null);
+    setSelectedFileState(file);
+  };
+
+  const clearAttachment = () => {
+    setSelectedFileState(null);
+  };
+
   const startSession = async () => {
     if (!nickname.trim()) {
-      setError('Vui lòng nhập nickname');
+      setError('Vui long nhap nickname');
       return;
     }
 
@@ -137,42 +220,80 @@ export const useChat = (): UseChatReturn => {
       const data = await api.startSession(nickname.trim());
       const token = data.data.accessToken;
       if (!token) {
-        throw new Error('Không nhận được accessToken');
+        throw new Error('Khong nhan duoc accessToken');
       }
 
       setAccessToken(token);
       setSessionNickname(nickname.trim());
       setStatus('connected');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi không xác định');
+      setError(err instanceof Error ? err.message : 'Loi khong xac dinh');
       setStatus('error');
     }
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const content = draftRef.current.trim();
-    if (!socketRef.current?.connected || !content) return;
+    const file = selectedFileRef.current;
 
-    // Guard: Xóa ngay lập tức để tránh gửi lặp khi render chưa kịp đáp ứng
+    if (!socketRef.current?.connected || isSendingRef.current || (!content && !file)) return;
+
+    isSendingRef.current = true;
+    setIsSending(true);
+
+    let socketFile: SocketFilePayload | undefined;
+    let localFileURL: string | undefined;
+
+    try {
+      if (file) {
+        socketFile = {
+          data: await toBase64(file),
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+        };
+        localFileURL = URL.createObjectURL(file);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Khong the doc file dinh kem');
+      setIsSending(false);
+      isSendingRef.current = false;
+      return;
+    }
+
     draftRef.current = '';
     setDraft('');
+    selectedFileRef.current = null;
+    setSelectedFileState(null);
 
     socketRef.current.emit('message:send', {
-      content,
+      content: content || null,
       receiver: 'admin',
+      ...(socketFile ? { file: socketFile } : {}),
     });
 
-    // Optimistic UI: Hiển thị ngay lập tức
     setMessages((prev) => [
       ...prev,
       {
-        content,
+        content: content || null,
         sender: userId || 'user',
         receiver: 'admin',
         createdAt: new Date().toISOString(),
+        ...(file
+          ? {
+              attachmentType: isImageFile(file) ? 'image' : 'file',
+              imageURL: isImageFile(file) ? localFileURL : undefined,
+              fileURL: localFileURL,
+              fileDownloadURL: localFileURL,
+              fileName: file.name,
+              fileMimeType: file.type || 'application/octet-stream',
+              fileSize: file.size,
+            }
+          : {}),
       },
     ]);
-    setDraft('');
+
+    setIsSending(false);
+    isSendingRef.current = false;
   };
 
   const resetSession = () => {
@@ -180,6 +301,8 @@ export const useChat = (): UseChatReturn => {
     setSessionNickname('');
     setUserId(null);
     setMessages([]);
+    setSelectedFileState(null);
+    setIsSending(false);
     setStatus('idle');
     setError(null);
     socketRef.current?.disconnect();
@@ -187,7 +310,6 @@ export const useChat = (): UseChatReturn => {
   };
 
   return {
-    // State
     nickname,
     sessionNickname,
     status,
@@ -195,13 +317,15 @@ export const useChat = (): UseChatReturn => {
     userId,
     messages,
     draft,
+    selectedFile: selectedFileState,
+    isSending,
     error,
     canSend,
     statusText,
-
-    // Actions
     setNickname,
     setDraft,
+    setSelectedFile,
+    clearAttachment,
     startSession,
     sendMessage,
     resetSession,

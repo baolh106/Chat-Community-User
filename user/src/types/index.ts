@@ -1,15 +1,28 @@
 export type Message = {
-  content: string;
+  content: string | null;
   sender: string;
   receiver: string;
   createdAt: string;
   imageURL?: string;
+  fileURL?: string;
+  fileDownloadURL?: string | null;
+  fileName?: string;
+  fileMimeType?: string;
+  fileSize?: number;
+  fileDriveId?: string;
+  attachmentType?: 'image' | 'file';
 };
 
 export type SocketPayload = {
   ok: boolean;
   userId?: string;
   reason?: string;
+};
+
+export type SocketFilePayload = {
+  data: string;
+  name: string;
+  mimeType: string;
 };
 
 export type ChatStatus = 'idle' | 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';

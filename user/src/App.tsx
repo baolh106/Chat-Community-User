@@ -9,11 +9,15 @@ function App() {
     userId,
     messages,
     draft,
+    selectedFile,
+    isSending,
     error,
     canSend,
     statusText,
     setNickname,
     setDraft,
+    setSelectedFile,
+    clearAttachment,
     startSession,
     sendMessage,
     resetSession,
@@ -37,8 +41,12 @@ function App() {
             userId={userId}
             messages={messages}
             draft={draft}
+            selectedFile={selectedFile}
+            isSending={isSending}
             error={error}
             onDraftChange={setDraft}
+            onFileChange={setSelectedFile}
+            onClearAttachment={clearAttachment}
             onSendMessage={sendMessage}
             onResetSession={resetSession}
             canSend={canSend}

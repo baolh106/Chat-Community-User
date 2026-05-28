@@ -12,11 +12,15 @@ export const AdminPage = () => {
     selectedUserId,
     messages,
     draft,
+    selectedFile,
+    isSending,
     error,
     canSend,
     statusText,
     setPassword,
     setDraft,
+    setSelectedFile,
+    clearAttachment,
     setSelectedUserId,
     startSession,
     sendMessage,
@@ -110,8 +114,12 @@ export const AdminPage = () => {
                 userId="admin"
                 messages={messages} // 'messages' from useChat is now already filtered for the selected user
                 draft={draft}
+                selectedFile={selectedFile}
+                isSending={isSending}
                 error={error}
                 onDraftChange={setDraft}
+                onFileChange={setSelectedFile}
+                onClearAttachment={clearAttachment}
                 onSendMessage={sendMessage}
                 onResetSession={resetSession}
                 canSend={canSend}
