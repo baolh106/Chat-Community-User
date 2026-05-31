@@ -14,6 +14,7 @@ function App() {
     error,
     canSend,
     statusText,
+    videoCall,
     setNickname,
     setDraft,
     setSelectedFile,
@@ -50,6 +51,7 @@ function App() {
             onSendMessage={sendMessage}
             onResetSession={resetSession}
             canSend={canSend}
+            videoCall={videoCall}
           />
         )}
       </section>

@@ -1,6 +1,8 @@
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
 import type { Message } from '../types';
+import type { VideoCallState } from '../hooks/useChat';
+import { VideoCallPanel } from './VideoCallPanel';
 
 interface ChatPanelProps {
   sessionNickname: string;
@@ -16,6 +18,7 @@ interface ChatPanelProps {
   onSendMessage: () => void | Promise<void>;
   onResetSession: () => void;
   canSend: boolean;
+  videoCall: VideoCallState;
 }
 
 export const ChatPanel = ({
@@ -32,17 +35,48 @@ export const ChatPanel = ({
   onSendMessage,
   onResetSession,
   canSend,
+  videoCall,
 }: ChatPanelProps) => {
   return (
-    <div className="chat-panel">
+    <div className="chat-panel" style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      flex: 1, 
+      height: '100%', 
+      overflow: 'hidden' 
+    }}>
       <div className="session-info">
         <div>
           <strong>ID:</strong> {userId ?? 'Đang chờ...'}
         </div>
-        <button className="small-button" onClick={onResetSession}>
-          Bắt đầu lại
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button 
+            className="small-button" 
+            onClick={() => videoCall.startCall('admin')}
+            disabled={!videoCall.canStartCall}
+            style={{ background: '#db2777', color: '#fff', border: 'none' }}
+          >📹 Gọi Video</button>
+          <button className="small-button" onClick={onResetSession}>
+            Bắt đầu lại
+          </button>
+        </div>
       </div>
+
+      {videoCall && (
+        <VideoCallPanel
+          status={videoCall.status}
+          peerName={videoCall.peerName}
+          localStream={videoCall.localStream}
+          remoteStream={videoCall.remoteStream}
+          error={videoCall.error}
+          canStartCall={videoCall.canStartCall}
+          onStartCall={() => videoCall.startCall('admin')}
+          onAcceptCall={videoCall.acceptCall}
+          onRejectCall={videoCall.rejectCall}
+          onCancelCall={videoCall.cancelCall}
+          onEndCall={videoCall.endCall}
+        />
+      )}
 
       <MessageList messages={messages} userId={userId} />
 

@@ -26,6 +26,8 @@ const mapMessageError = (reason?: string) => {
   return reason || 'Gui message that bai';
 };
 
+const createCallId = () => crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 const upsertMessage = (messages: Message[], nextMessage: Message) => {
   const duplicateIndex = messages.findIndex(
     (message) =>
@@ -61,6 +63,20 @@ const upsertMessage = (messages: Message[], nextMessage: Message) => {
   return [...messages, nextMessage];
 };
 
+export interface VideoCallState {
+  status: 'idle' | 'calling' | 'incoming' | 'ongoing';
+  peerName: string | null;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
+  error: string | null;
+  canStartCall: boolean;
+  startCall: (receiver?: string) => Promise<void>;
+  acceptCall: () => Promise<void>;
+  rejectCall: () => void;
+  cancelCall: () => void;
+  endCall: () => void;
+}
+
 interface UseChatReturn {
   nickname: string;
   sessionNickname: string;
@@ -74,6 +90,7 @@ interface UseChatReturn {
   error: string | null;
   canSend: boolean;
   statusText: string;
+  videoCall: VideoCallState;
   setNickname: (value: string) => void;
   setDraft: (value: string) => void;
   setSelectedFile: (file: File | null) => void;
@@ -87,6 +104,7 @@ export const useChat = (): UseChatReturn => {
   const [nickname, setNickname] = useState('');
   const [sessionNickname, setSessionNickname] = useState('');
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [status, setStatus] = useState<ChatStatus>('idle');
   const [socketConnected, setSocketConnected] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -96,11 +114,142 @@ export const useChat = (): UseChatReturn => {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Video Call States
+  const [callStatus, setCallStatus] = useState<VideoCallState['status']>('idle');
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [peerName, setPeerName] = useState<string | null>(null);
+
   const socketRef = useRef<Socket | null>(null);
   const draftRef = useRef(draft);
   const selectedFileRef = useRef<File | null>(selectedFileState);
   const isSendingRef = useRef(isSending);
   const userIdRef = useRef(userId);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const peerNameRef = useRef<string | null>(null);
+  const callIdRef = useRef<string | null>(null);
+  const pendingOfferRef = useRef<any>(null);
+  const ringAudioContextRef = useRef<AudioContext | null>(null);
+  const ringOscillatorRef = useRef<OscillatorNode | null>(null);
+  const ringOscillatorRef2 = useRef<OscillatorNode | null>(null);
+  const ringGainRef = useRef<GainNode | null>(null);
+  const ringGainRef2 = useRef<GainNode | null>(null);
+  const ringTimerRef = useRef<number | null>(null);
+
+  const playRingtone = async () => {
+    if (ringTimerRef.current !== null) return;
+    const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const audioCtx = ringAudioContextRef.current || new AudioContextClass();
+    ringAudioContextRef.current = audioCtx;
+
+    if (audioCtx.state === 'suspended') {
+      try {
+        await audioCtx.resume();
+      } catch {
+        return;
+      }
+    }
+
+    const playTone = () => {
+      const ctx = ringAudioContextRef.current;
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+
+      const oscillator1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      oscillator1.type = 'square'; // Mechanical, sharp sound
+      oscillator1.frequency.setValueAtTime(600, now);
+      gain1.gain.setValueAtTime(0, now);
+
+      const oscillator2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      oscillator2.type = 'square';
+      oscillator2.frequency.setValueAtTime(800, now);
+      gain2.gain.setValueAtTime(0, now);
+
+      // Create 8 rapid "reng" pulses for mechanical effect
+      for (let i = 0; i < 8; i++) {
+        const pulseStart = now + i * 0.15;
+        gain1.gain.linearRampToValueAtTime(0.2, pulseStart + 0.02);
+        gain1.gain.exponentialRampToValueAtTime(0.01, pulseStart + 0.12);
+        gain2.gain.linearRampToValueAtTime(0.2, pulseStart + 0.02);
+        gain2.gain.exponentialRampToValueAtTime(0.01, pulseStart + 0.12);
+      }
+
+      oscillator1.connect(gain1);
+      gain1.connect(ctx.destination);
+      oscillator1.start(now);
+      ringOscillatorRef.current = oscillator1;
+      ringGainRef.current = gain1;
+
+      oscillator2.connect(gain2);
+      gain2.connect(ctx.destination);
+      oscillator2.start(now);
+      ringOscillatorRef2.current = oscillator2;
+      ringGainRef2.current = gain2;
+
+      // Ring for 1400ms (1.4 seconds)
+      window.setTimeout(() => {
+        try {
+          oscillator1.stop();
+          oscillator2.stop();
+          oscillator1.disconnect();
+          oscillator2.disconnect();
+          gain1.disconnect();
+          gain2.disconnect();
+          if (ringOscillatorRef.current === oscillator1) ringOscillatorRef.current = null;
+          if (ringOscillatorRef2.current === oscillator2) ringOscillatorRef2.current = null;
+          if (ringGainRef.current === gain1) ringGainRef.current = null;
+          if (ringGainRef2.current === gain2) ringGainRef2.current = null;
+        } catch {
+          // ignore
+        }
+      }, 1400);
+    };
+
+    playTone();
+    // Ring 1400ms on, 100ms off = 1500ms total interval (Near continuous)
+    ringTimerRef.current = window.setInterval(playTone, 1500);
+  };
+
+  const stopRingtone = () => {
+    if (ringTimerRef.current !== null) {
+      window.clearInterval(ringTimerRef.current);
+      ringTimerRef.current = null;
+    }
+    if (ringOscillatorRef.current) {
+      try {
+        ringOscillatorRef.current.stop();
+      } catch {
+        // ignore
+      }
+      ringOscillatorRef.current.disconnect();
+      ringOscillatorRef.current = null;
+    }
+    if (ringOscillatorRef2.current) {
+      try {
+        ringOscillatorRef2.current.stop();
+      } catch {
+        // ignore
+      }
+      ringOscillatorRef2.current.disconnect();
+      ringOscillatorRef2.current = null;
+    }
+    if (ringGainRef.current) {
+      ringGainRef.current.disconnect();
+      ringGainRef.current = null;
+    }
+    if (ringGainRef2.current) {
+      ringGainRef2.current.disconnect();
+      ringGainRef2.current = null;
+    }
+  };
+  const refreshAttemptedRef = useRef(false);
+  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const canSend = Boolean(
     socketConnected && userId && !isSending && (draft.trim().length > 0 || selectedFileState)
@@ -113,6 +262,82 @@ export const useChat = (): UseChatReturn => {
     if (status === 'error') return 'Loi ket noi';
     return 'Chua dang nhap';
   }, [status]);
+
+  const STORAGE_KEY = 'user_chat_auth';
+
+  const saveAuth = (accessTokenValue: string, refreshTokenValue: string, nicknameValue: string) => {
+    const payload = {
+      accessToken: accessTokenValue,
+      refreshToken: refreshTokenValue,
+      sessionNickname: nicknameValue,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  };
+
+  const clearStoredAuth = () => {
+    localStorage.removeItem(STORAGE_KEY);
+  };
+
+  const tryRefreshSession = async () => {
+    if (!refreshToken) {
+      return false;
+    }
+    if (refreshPromiseRef.current) {
+      return refreshPromiseRef.current;
+    }
+
+    const promise = (async () => {
+      try {
+        setStatus('connecting');
+        const data = await api.refreshSession(refreshToken);
+        const token = data.data.accessToken;
+        const refreshedRefreshToken = data.data.refreshToken || refreshToken;
+        if (!token) {
+          throw new Error('Khong nhan duoc accessToken');
+        }
+
+        setAccessToken(token);
+        setRefreshToken(refreshedRefreshToken);
+        saveAuth(token, refreshedRefreshToken, sessionNickname || nickname);
+        setError(null);
+        refreshAttemptedRef.current = false;
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Session da het han. Vui long dang nhap lai');
+        resetSession();
+        return false;
+      } finally {
+        refreshPromiseRef.current = null;
+      }
+    })();
+
+    refreshPromiseRef.current = promise;
+    return promise;
+  };
+
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        accessToken: string;
+        refreshToken: string;
+        sessionNickname?: string;
+      };
+      if (parsed.accessToken && parsed.refreshToken) {
+        setAccessToken(parsed.accessToken);
+        setRefreshToken(parsed.refreshToken);
+        setSessionNickname(parsed.sessionNickname || '');
+      }
+    } catch {
+      clearStoredAuth();
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshAttemptedRef.current = false;
+  }, [accessToken]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -130,6 +355,142 @@ export const useChat = (): UseChatReturn => {
     userIdRef.current = userId;
   }, [userId]);
 
+  const cleanupCall = () => {
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+    setLocalStream(null);
+    setRemoteStream(null);
+    setCallStatus('idle');
+    callIdRef.current = null;
+    setPeerName(null);
+    peerNameRef.current = null;
+    pendingOfferRef.current = null;
+    stopRingtone();
+  };
+
+  const isAllowedReceiver = (receiver: string) => receiver === 'admin';
+
+  const startCall = async (receiver: string = 'admin') => {
+    if (!isAllowedReceiver(receiver)) {
+      setError('User chỉ được gọi tới admin');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // eslint-disable-next-line no-console
+      console.log('[user] acquired local stream', stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, id: t.id })));
+      setLocalStream(stream);
+      localStreamRef.current = stream;
+      setCallStatus('calling');
+      setPeerName(receiver);
+      peerNameRef.current = receiver;
+
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      pcRef.current = pc;
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      pc.ontrack = (event) => {
+        const s = event.streams[0];
+        // eslint-disable-next-line no-console
+        console.log('[user] pc.ontrack', s, 'tracks=', s?.getTracks().map(t=>({kind:t.kind, id:t.id})));
+        setRemoteStream(s);
+      };
+      pc.onicecandidate = (event) => {
+        if (event.candidate && callIdRef.current) {
+          socketRef.current?.emit('call:ice-candidate', {
+            callId: callIdRef.current,
+            receiver,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      if (!callIdRef.current) callIdRef.current = createCallId();
+      const invitePayload = { callId: callIdRef.current, receiver, mediaType: 'video', offer };
+      console.log('[user] emit call:invite', invitePayload);
+      socketRef.current?.emit('call:invite', invitePayload, (ack: any) => {
+        if (ack?.ok && ack.callId) {
+          callIdRef.current = ack.callId;
+        }
+      });
+    } catch (err) {
+      setError('Không thể truy cập camera/micro');
+      cleanupCall();
+    }
+  };
+
+  const acceptCall = async () => {
+    if (!pendingOfferRef.current || !callIdRef.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // eslint-disable-next-line no-console
+      console.log('[user] acquired local stream for accept', stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, id: t.id })));
+      setLocalStream(stream);
+      localStreamRef.current = stream;
+
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      pcRef.current = pc;
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      pc.ontrack = (event) => {
+          const s = event.streams[0];
+          // eslint-disable-next-line no-console
+          console.log('[user] pc.ontrack (accept)', s, 'tracks=', s?.getTracks().map(t=>({kind:t.kind, id:t.id})));
+          setRemoteStream(s);
+      };
+      pc.onicecandidate = (event) => {
+        if (event.candidate && callIdRef.current && peerNameRef.current) {
+          socketRef.current?.emit('call:ice-candidate', {
+            callId: callIdRef.current,
+            receiver: peerNameRef.current,
+            candidate: event.candidate,
+          });
+        }
+      };
+
+      await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socketRef.current?.emit('call:accept', {
+        callId: callIdRef.current,
+        receiver: peerNameRef.current || 'admin',
+        answer,
+      });
+      stopRingtone();
+      setCallStatus('ongoing');
+    } catch (err) {
+      setError('Lỗi khi chấp nhận cuộc gọi');
+      cleanupCall();
+    }
+  };
+
+  const rejectCall = () => {
+    const payload = { callId: callIdRef.current, receiver: peerNameRef.current || 'admin' };
+    socketRef.current?.emit('call:reject', payload);
+    cleanupCall();
+  };
+
+  const cancelCall = () => {
+    const payload = { callId: callIdRef.current, receiver: peerNameRef.current || 'admin' };
+    socketRef.current?.emit('call:cancel', payload);
+    cleanupCall();
+  };
+
+  const endCall = () => {
+    const payload = { callId: callIdRef.current, receiver: peerNameRef.current || 'admin' };
+    socketRef.current?.emit('call:end', payload);
+    cleanupCall();
+  };
+
   useEffect(() => {
     if (!accessToken) return;
 
@@ -137,21 +498,46 @@ export const useChat = (): UseChatReturn => {
     socketRef.current = socket;
     setStatus('connecting');
 
-    socket.on('connect', () => {
+    const handleConnect = () => {
+      console.log('Socket connected, emitting user:join');
       setSocketConnected(true);
       setStatus('connected');
       socket.emit('user:join');
-    });
+    };
+
+    // Đăng ký listener trước
+    socket.on('connect', handleConnect);
+
+    // Nếu đã kết nối rồi (do cache hoặc kết nối cực nhanh) thì gọi trực tiếp
+    if (socket.connected) {
+      handleConnect();
+    }
 
     socket.on('disconnect', () => {
       setSocketConnected(false);
       setStatus('disconnected');
+      cleanupCall();
     });
 
-    socket.on('connect_error', (err: Error) => {
+    socket.on('connect_error', async (err: Error) => {
       console.error('connect_error', err);
+      const message = err?.message || '';
+      const isAuthError = /unauthorized|token|expired|jwt|authentication/i.test(message);
+
+      if (isAuthError && refreshToken && !refreshAttemptedRef.current) {
+        refreshAttemptedRef.current = true;
+        socket.disconnect();
+        socketRef.current = null;
+        const refreshed = await tryRefreshSession();
+        if (!refreshed) {
+          setStatus('error');
+        }
+        return;
+      }
+
       setError('Fail connection.');
       setStatus('error');
+      cleanupCall();
     });
 
     socket.on('user:joined', (payload: SocketPayload) => {
@@ -187,6 +573,49 @@ export const useChat = (): UseChatReturn => {
       setError(mapMessageError(payload.reason));
     });
 
+    socket.on('call:incoming', (payload: any) => {
+      setCallStatus('incoming');
+      setPeerName(payload.caller);
+      peerNameRef.current = payload.caller;
+      callIdRef.current = payload.callId;
+      pendingOfferRef.current = payload.offer;
+      playRingtone();
+    });
+
+    socket.on('call:accepted', async (payload: any) => {
+      if (pcRef.current && payload.answer) {
+        await pcRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
+        setCallStatus('ongoing');
+      }
+    });
+
+    socket.on('call:ice-candidate', async (payload: any) => {
+      if (pcRef.current && payload.candidate) {
+        await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(console.error);
+      }
+    });
+
+    // Events received from the other party via backend
+    socket.on('call:error', (payload: any) => {
+      setError(payload?.reason || 'Call error');
+      cleanupCall();
+    });
+    socket.on('call:rejected', () => {
+      cleanupCall();
+    });
+    socket.on('call:cancelled', () => {
+      cleanupCall();
+    });
+    socket.on('call:cancel', () => {
+      cleanupCall();
+    });
+    socket.on('call:ended', () => {
+      cleanupCall();
+    });
+    socket.on('call:end', () => {
+      cleanupCall();
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
@@ -219,13 +648,15 @@ export const useChat = (): UseChatReturn => {
     try {
       const data = await api.startSession(nickname.trim());
       const token = data.data.accessToken;
-      if (!token) {
-        throw new Error('Khong nhan duoc accessToken');
+      const refresh = data.data.refreshToken;
+      if (!token || !refresh) {
+        throw new Error('Khong nhan duoc accessToken hoac refreshToken');
       }
 
       setAccessToken(token);
+      setRefreshToken(refresh);
       setSessionNickname(nickname.trim());
-      setStatus('connected');
+      saveAuth(token, refresh, nickname.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Loi khong xac dinh');
       setStatus('error');
@@ -298,6 +729,7 @@ export const useChat = (): UseChatReturn => {
 
   const resetSession = () => {
     setAccessToken(null);
+    setRefreshToken(null);
     setSessionNickname('');
     setUserId(null);
     setMessages([]);
@@ -307,6 +739,7 @@ export const useChat = (): UseChatReturn => {
     setError(null);
     socketRef.current?.disconnect();
     socketRef.current = null;
+    clearStoredAuth();
   };
 
   return {
@@ -322,6 +755,19 @@ export const useChat = (): UseChatReturn => {
     error,
     canSend,
     statusText,
+    videoCall: {
+      status: callStatus,
+      peerName,
+      localStream,
+      remoteStream,
+      error,
+      canStartCall: socketConnected && !!userId,
+      startCall,
+      acceptCall,
+      rejectCall,
+      cancelCall,
+      endCall,
+    },
     setNickname,
     setDraft,
     setSelectedFile,

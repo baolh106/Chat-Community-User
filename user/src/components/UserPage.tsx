@@ -16,6 +16,7 @@ export const UserPage = () => {
     error,
     canSend,
     statusText,
+    videoCall,
     setNickname,
     setDraft,
     setSelectedFile,
@@ -54,6 +55,7 @@ export const UserPage = () => {
           onSendMessage={sendMessage}
           onResetSession={resetSession}
           canSend={canSend}
+          videoCall={videoCall}
         />
       )}
     </div>

@@ -17,6 +17,7 @@ export const AdminPage = () => {
     error,
     canSend,
     statusText,
+    videoCall,
     setPassword,
     setDraft,
     setSelectedFile,
@@ -50,7 +51,6 @@ export const AdminPage = () => {
           display: 'flex', 
           gap: '20px', 
           flex: 1, // Chiếm toàn bộ phần còn lại sau Header
-          minHeight: 0, // Quan trọng để các con có thể scroll được trong Flexbox
           overflow: 'hidden',
           padding: '0 10px 10px 10px'
         }}>
@@ -123,6 +123,7 @@ export const AdminPage = () => {
                 onSendMessage={sendMessage}
                 onResetSession={resetSession}
                 canSend={canSend}
+                videoCall={videoCall}
               />
             ) : (
               <div className="empty-state">Chọn một user để bắt đầu hỗ trợ</div>

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { MessageItem } from './MessageItem';
 import type { Message } from '../types';
 
@@ -7,6 +8,15 @@ interface MessageListProps {
 }
 
 export const MessageList = ({ messages, userId }: MessageListProps) => {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Tự động cuộn xuống khi có tin nhắn mới
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
   return (
     <div className="messages-box">
       {messages.length === 0 ? (
@@ -24,6 +34,7 @@ export const MessageList = ({ messages, userId }: MessageListProps) => {
           );
         })
       )}
+      <div ref={messagesEndRef} />
     </div>
   );
 };

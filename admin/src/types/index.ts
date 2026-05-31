@@ -27,6 +27,15 @@ export type SocketFilePayload = {
 
 export type ChatStatus = 'idle' | 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
+export type CallInfo = {
+  callId: string;
+  caller: string;
+  remoteStream: MediaStream | null;
+  status: 'incoming' | 'accepted' | 'ongoing' | 'outgoing';
+  pc: RTCPeerConnection | null;
+  offer?: RTCSessionDescriptionInit;
+};
+
 export type AuthResponse = {
   data: {
     accessToken: string;
