@@ -23,6 +23,7 @@ export const AdminPage = () => {
     setSelectedFile,
     clearAttachment,
     setSelectedUserId,
+    unreadCounts,
     startSession,
     sendMessage,
     resetSession,
@@ -98,6 +99,21 @@ export const AdminPage = () => {
                         <span style={{ fontSize: '1.2rem' }}>👤</span>
                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {uId}
+                        </div>
+                        {/* Unread badge */}
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                          {unreadCounts && unreadCounts[uId] > 0 ? (
+                            <span style={{
+                              background: '#ef4444',
+                              color: '#fff',
+                              borderRadius: '999px',
+                              padding: '4px 8px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              minWidth: '24px',
+                              textAlign: 'center'
+                            }}>{unreadCounts[uId]}</span>
+                          ) : null}
                         </div>
                       </div>
                     </li>

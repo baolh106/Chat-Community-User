@@ -40,4 +40,38 @@ export const api = {
 
     return response.json();
   },
+  async getUnreadCount(conversationKey: string, readerId: string, accessToken?: string) {
+    const url = `${API_BASE}/message/unread-count/${encodeURIComponent(conversationKey)}?readerId=${encodeURIComponent(
+      readerId
+    )}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body?.message || 'Lỗi khi lấy unread count');
+    }
+    return response.json();
+  },
+
+  async markRead(conversationKey: string, readerId: string, accessToken?: string) {
+    const url = `${API_BASE}/message/mark-read`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ conversationKey, readerId }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body?.message || 'Lỗi khi đánh dấu đã đọc');
+    }
+    return response.json();
+  },
 };

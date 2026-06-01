@@ -87,6 +87,7 @@ interface UseChatReturn {
   userId: string | null;
   onlineUsers: string[];
   selectedUserId: string | null;
+  unreadCounts: Record<string, number>;
   messages: Message[];
   draft: string;
   selectedFile: File | null;
@@ -116,6 +117,7 @@ export const useChat = (): UseChatReturn => {
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [allUserMessages, setAllUserMessages] = useState<Record<string, Message[]>>({});
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState('');
   const [selectedFileState, setSelectedFileState] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -235,6 +237,31 @@ export const useChat = (): UseChatReturn => {
   useEffect(() => {
     refreshAttemptedRef.current = false;
   }, [accessToken]);
+
+  // Fetch unread counts for online users when list or accessToken changes
+  useEffect(() => {
+    const fetchAll = async () => {
+      if (!accessToken) return;
+      try {
+        const entries = await Promise.all(
+          onlineUsers.map(async (u) => {
+            try {
+              const res = await api.getUnreadCount(u, 'admin', accessToken);
+              return [u, (res?.data?.unreadCount as number) || 0] as const;
+            } catch {
+              return [u, 0] as const;
+            }
+          })
+        );
+        const map: Record<string, number> = {};
+        for (const [u, count] of entries) map[u] = count;
+        setUnreadCounts(map);
+      } catch {
+        // ignore
+      }
+    };
+    fetchAll();
+  }, [onlineUsers, accessToken]);
 
   useEffect(() => {
     draftRef.current = draft;
@@ -699,6 +726,21 @@ export const useChat = (): UseChatReturn => {
           }
           return prev;
         });
+
+        const sender = message.sender;
+        if (selectedUserIdRef.current === sender) {
+          // If admin is currently viewing this user, mark as read on server and clear unread count
+          (async () => {
+            try {
+              if (accessToken) await api.markRead(sender, 'admin', accessToken);
+            } catch {
+              // ignore
+            }
+            setUnreadCounts(prev => ({ ...prev, [sender]: 0 }));
+          })();
+        } else {
+          setUnreadCounts(prev => ({ ...prev, [sender]: (prev[sender] || 0) + 1 }));
+        }
       }
     });
 
@@ -906,6 +948,27 @@ export const useChat = (): UseChatReturn => {
     clearStoredAuth();
   };
 
+  const selectUser = (userId: string | null) => {
+    setSelectedUserId(userId);
+    if (!userId) return;
+
+    (async () => {
+      try {
+        if (accessToken) await api.markRead(userId, 'admin', accessToken);
+      } catch {
+        // ignore
+      }
+      setUnreadCounts(prev => ({ ...prev, [userId]: 0 }));
+
+      // update local messages to mark as read where receiver is admin
+      setAllUserMessages(prev => {
+        const conv = prev[userId] || [];
+        const updated = conv.map(m => (m.receiver === 'admin' ? { ...m, isRead: true } : m));
+        return { ...prev, [userId]: updated };
+      });
+    })();
+  };
+
   return {
     password,
     sessionNickname,
@@ -940,7 +1003,8 @@ export const useChat = (): UseChatReturn => {
     setDraft,
     setSelectedFile,
     clearAttachment,
-    setSelectedUserId,
+    setSelectedUserId: selectUser,
+    unreadCounts,
     startSession,
     sendMessage,
     resetSession,
