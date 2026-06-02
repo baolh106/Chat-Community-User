@@ -20,7 +20,7 @@ export const MessageList = ({ messages, userId }: MessageListProps) => {
   return (
     <div className="messages-box">
       {messages.length === 0 ? (
-        <div className="empty-state">Chưa có tin nhắn nào. Gửi tin nhắn để bắt đầu.</div>
+        <div className="empty-state">No messages yet. Send a message to get started.</div>
       ) : (
         messages.map((message, index) => {
           const isMine = message.sender === userId || message.sender === 'user';

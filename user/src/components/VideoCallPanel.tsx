@@ -16,10 +16,10 @@ interface VideoCallPanelProps {
 }
 
 const getStatusText = (status: VideoCallState['status'], peerName: string | null) => {
-  if (status === 'incoming') return `Hỗ trợ viên đang gọi video...`;
-  if (status === 'calling') return `Đang gọi cho hỗ trợ viên...`;
-  if (status === 'ongoing') return `Đang trong cuộc gọi với ${peerName || 'hỗ trợ viên'}`;
-  return 'Sẵn sàng gọi video';
+  if (status === 'incoming') return `Support is calling...`;
+  if (status === 'calling') return `Calling support...`;
+  if (status === 'ongoing') return `In call with ${peerName || 'support'}`;
+  return 'Ready to video call';
 };
 
 const VideoStreamTile = ({
@@ -135,22 +135,22 @@ export const VideoCallPanel = ({
         <div className="video-call-actions" style={{ display: 'flex', gap: '8px' }}>
           {status === 'incoming' && (
             <>
-              <button className="small-button" style={{ background: '#10b981' }} onClick={onAcceptCall}>Chấp nhận</button>
-              <button className="small-button danger-button" onClick={onRejectCall}>Từ chối</button>
+              <button className="small-button" style={{ background: '#10b981' }} onClick={onAcceptCall}>Accept</button>
+              <button className="small-button danger-button" onClick={onRejectCall}>Reject</button>
             </>
           )}
           {status === 'calling' && (
-            <button className="small-button danger-button" onClick={onCancelCall}>Hủy</button>
+            <button className="small-button danger-button" onClick={onCancelCall}>Cancel</button>
           )}
           {status === 'ongoing' && (
-            <button className="small-button danger-button" onClick={onEndCall}>Kết thúc</button>
+            <button className="small-button danger-button" onClick={onEndCall}>End</button>
           )}
         </div>
       </div>
 
       <div className="video-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-        <VideoStreamTile stream={remoteStream} label="Hỗ trợ viên" />
-        <VideoStreamTile stream={localStream} label="Bạn (Local)" muted />
+        <VideoStreamTile stream={remoteStream} label="Support" />
+        <VideoStreamTile stream={localStream} label="You (Local)" muted />
       </div>
 
       {error && (

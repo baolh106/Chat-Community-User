@@ -71,7 +71,7 @@ export const MessageComposer = ({
             </div>
           </div>
           <button className="icon-button" type="button" onClick={clearAttachment} disabled={isSending}>
-            Xoa
+            Xóa
           </button>
         </div>
       )}
@@ -86,7 +86,7 @@ export const MessageComposer = ({
             void onSendMessage();
           }
         }}
-        placeholder="Nhap tin nhan cua ban..."
+        placeholder="Type your message..."
         disabled={isSending}
       />
 
@@ -99,10 +99,10 @@ export const MessageComposer = ({
           disabled={isSending}
         />
         <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} disabled={isSending}>
-          Dinh kem
+          Attach
         </button>
         <button type="button" onClick={() => void onSendMessage()} disabled={!canSend}>
-          {isSending ? 'Dang gui...' : 'Gui'}
+          {isSending ? 'Sending...' : 'Send'}
         </button>
       </div>
     </div>

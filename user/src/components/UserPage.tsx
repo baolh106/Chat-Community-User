@@ -18,6 +18,7 @@ export const UserPage = () => {
     statusText,
     videoCall,
     setNickname,
+    setCaptchaToken,
     setDraft,
     setSelectedFile,
     clearAttachment,
@@ -38,6 +39,7 @@ export const UserPage = () => {
           nickname={nickname}
           onNicknameChange={setNickname}
           onStartSession={startSession}
+          onCaptchaChange={setCaptchaToken}
           error={error}
         />
       ) : (

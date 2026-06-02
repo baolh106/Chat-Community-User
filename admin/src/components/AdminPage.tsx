@@ -19,6 +19,7 @@ export const AdminPage = () => {
     statusText,
     videoCall,
     setPassword,
+    setCaptchaToken,
     setDraft,
     setSelectedFile,
     clearAttachment,
@@ -34,9 +35,7 @@ export const AdminPage = () => {
   return (
     <div className="app-container admin-theme" style={{ 
       display: 'flex', 
-      flexDirection: 'column', 
-      height: '100%', 
-      overflow: 'hidden' 
+      flexDirection: 'column'
     }}>
       <ChatHeader status={statusText} statusClass={status} />
       
@@ -45,14 +44,14 @@ export const AdminPage = () => {
           password={password}
           onPasswordChange={setPassword}
           onLogin={startSession}
+          onCaptchaChange={setCaptchaToken}
           error={error}
         />
       ) : (
         <div className="admin-layout" style={{ 
           display: 'flex', 
           gap: '20px', 
-          flex: 1, // Chiếm toàn bộ phần còn lại sau Header
-          overflow: 'hidden',
+          flex: 1,
           padding: '0 10px 10px 10px'
         }}>
           {/* Danh sách User Online bên trái */}
@@ -69,12 +68,12 @@ export const AdminPage = () => {
             overflow: 'hidden'
           }}>
             <h3 style={{ color: '#db2777', marginBottom: '15px', fontSize: '1.1rem' }}>
-              Người dùng trực tuyến ({onlineUsers.length})
+              Online users ({onlineUsers.length})
             </h3>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {onlineUsers.length === 0 ? (
-                  <p style={{ fontSize: '0.9rem', color: '#999', textAlign: 'center' }}>Chưa có người dùng nào...</p>
+                  <p style={{ fontSize: '0.9rem', color: '#999', textAlign: 'center' }}>No users online...</p>
                 ) : (
                   onlineUsers.map(uId => (
                     <li 
@@ -124,7 +123,49 @@ export const AdminPage = () => {
           </div>
 
           {/* Khung chat bên phải */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <div className="session-info" style={{ justifyContent: 'flex-end', marginTop: '20px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button
+                  className="small-button"
+                  onClick={() => videoCall.startCall()}
+                  disabled={!videoCall.canStartCall}
+                  style={{ background: '#db2777', color: '#fff', border: 'none' }}
+                >📹 Video call</button>
+                {!videoCall.isVideoCallModalVisible && (videoCall.activeCalls.length > 0 || videoCall.incomingCalls.length > 0) && (
+                  <button
+                    className="small-button notification-button"
+                    onClick={videoCall.toggleVideoCallModal}
+                    style={{
+                      background: '#f59e0b',
+                      color: '#fff',
+                      border: 'none',
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    📞
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: '20px',
+                      height: '20px',
+                      background: '#dc2626',
+                      borderRadius: '10px',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold'
+                    }}>
+                      {videoCall.activeCalls.length + videoCall.incomingCalls.length}
+                    </span>
+                  </button>
+                )}
+                <button className="small-button" onClick={resetSession} style={{ background: '#9b1d4a', color: '#fff', border: 'none' }}>Reset Session</button>
+              </div>
+            </div>
+
             {selectedUserId ? (
               <ChatPanel
                 userId="admin"
@@ -142,7 +183,23 @@ export const AdminPage = () => {
                 videoCall={videoCall}
               />
             ) : (
-              <div className="empty-state">Chọn một user để bắt đầu hỗ trợ</div>
+              <div className="chat-panel" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <div className="messages-box">
+                  <div className="empty-state">Select a user to start support</div>
+                </div>
+
+                <div className="composer">
+                  <textarea placeholder="Type your message..." disabled />
+                  <div className="composer-actions">
+                    <button type="button" className="secondary-button" disabled>
+                      Attach
+                    </button>
+                    <button type="button" disabled>
+                      Send
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -4,16 +4,17 @@ const API_BASE = '/api';
 
 interface AdminLoginBody {
   password: string;
+  recaptchaToken?: string;
 }
 
 export const api = {
-  async adminLogin(password: string): Promise<AuthResponse> {
+  async adminLogin(password: string, recaptchaToken?: string): Promise<AuthResponse> {
     const response = await fetch(`${API_BASE}/auth/admin/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, recaptchaToken }),
     });
 
     if (!response.ok) {

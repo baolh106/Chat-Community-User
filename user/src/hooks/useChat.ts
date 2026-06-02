@@ -18,12 +18,12 @@ const toBase64 = (file: File) =>
 const isImageFile = (file: File) => file.type.startsWith('image/');
 
 const mapMessageError = (reason?: string) => {
-  if (reason === 'file_too_large') return `File vuot qua gioi han ${MAX_ATTACHMENT_SIZE_MB}MB`;
-  if (reason === 'invalid_file_payload') return 'File dinh kem khong hop le';
-  if (reason === 'message content or file is required') return 'Nhap noi dung hoac chon file de gui';
-  if (reason === 'invalid_payload') return 'Thieu nguoi nhan tin nhan';
-  if (reason === 'unauthorized') return 'Phien dang nhap khong hop le';
-  return reason || 'Gui message that bai';
+  if (reason === 'file_too_large') return `File vượt quá giới hạn ${MAX_ATTACHMENT_SIZE_MB}MB`;
+  if (reason === 'invalid_file_payload') return 'File đính kèm không hợp lệ';
+  if (reason === 'message content or file is required') return 'Nhập nội dung hoặc chọn file để gửi';
+  if (reason === 'invalid_payload') return 'Thiếu người nhận tin nhắn';
+  if (reason === 'unauthorized') return 'Phiên đăng nhập không hợp lệ';
+  return reason || 'Gửi message thất bại';
 };
 
 const createCallId = () => crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -92,6 +92,7 @@ interface UseChatReturn {
   statusText: string;
   videoCall: VideoCallState;
   setNickname: (value: string) => void;
+  setCaptchaToken: (token: string | null) => void;
   setDraft: (value: string) => void;
   setSelectedFile: (file: File | null) => void;
   clearAttachment: () => void;
@@ -105,6 +106,7 @@ export const useChat = (): UseChatReturn => {
   const [sessionNickname, setSessionNickname] = useState('');
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [status, setStatus] = useState<ChatStatus>('idle');
   const [socketConnected, setSocketConnected] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -256,11 +258,11 @@ export const useChat = (): UseChatReturn => {
   );
 
   const statusText = useMemo(() => {
-    if (status === 'connecting') return 'Dang ket noi...';
-    if (status === 'connected') return 'Da ket noi';
-    if (status === 'disconnected') return 'Mat ket noi';
-    if (status === 'error') return 'Loi ket noi';
-    return 'Chua dang nhap';
+    if (status === 'connecting') return 'Connecting...';
+    if (status === 'connected') return 'Connected';
+    if (status === 'disconnected') return 'Disconnected';
+    if (status === 'error') return 'Connection error';
+    return 'Not logged in';
   }, [status]);
 
   const STORAGE_KEY = 'user_chat_auth';
@@ -293,7 +295,7 @@ export const useChat = (): UseChatReturn => {
         const token = data.data.accessToken;
         const refreshedRefreshToken = data.data.refreshToken || refreshToken;
         if (!token) {
-          throw new Error('Khong nhan duoc accessToken');
+          throw new Error('Không nhận được accessToken');
         }
 
         setAccessToken(token);
@@ -303,7 +305,7 @@ export const useChat = (): UseChatReturn => {
         refreshAttemptedRef.current = false;
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Session da het han. Vui long dang nhap lai');
+        setError(err instanceof Error ? err.message : 'Session đã hết hạn. Vui lòng đăng nhập lại');
         resetSession();
         return false;
       } finally {
@@ -637,8 +639,19 @@ export const useChat = (): UseChatReturn => {
   };
 
   const startSession = async () => {
-    if (!nickname.trim()) {
-      setError('Vui long nhap nickname');
+    const trimmed = nickname.trim();
+    if (!trimmed) {
+      setError('Vui lòng nhập nickname');
+      return;
+    }
+
+    if (trimmed.length < 2 || trimmed.length > 15) {
+      setError('Nickname phải có từ 2 đến 15 ký tự');
+      return;
+    }
+
+    if (!captchaToken) {
+      setError('Vui lòng xác thực reCAPTCHA');
       return;
     }
 
@@ -646,11 +659,11 @@ export const useChat = (): UseChatReturn => {
     setStatus('loading');
 
     try {
-      const data = await api.startSession(nickname.trim());
+      const data = await api.startSession(nickname.trim(), captchaToken);
       const token = data.data.accessToken;
       const refresh = data.data.refreshToken;
       if (!token || !refresh) {
-        throw new Error('Khong nhan duoc accessToken hoac refreshToken');
+      throw new Error('Không nhận được accessToken hoặc refreshToken');
       }
 
       setAccessToken(token);
@@ -658,7 +671,7 @@ export const useChat = (): UseChatReturn => {
       setSessionNickname(nickname.trim());
       saveAuth(token, refresh, nickname.trim());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Loi khong xac dinh');
+      setError(err instanceof Error ? err.message : 'Lỗi không xác định');
       setStatus('error');
     }
   };
@@ -685,7 +698,7 @@ export const useChat = (): UseChatReturn => {
         localFileURL = URL.createObjectURL(file);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Khong the doc file dinh kem');
+      setError(err instanceof Error ? err.message : 'Không thể đọc file đính kèm');
       setIsSending(false);
       isSendingRef.current = false;
       return;
@@ -769,6 +782,7 @@ export const useChat = (): UseChatReturn => {
       endCall,
     },
     setNickname,
+    setCaptchaToken,
     setDraft,
     setSelectedFile,
     clearAttachment,

@@ -39,54 +39,9 @@ export const ChatPanel = ({
     <div className="chat-panel" style={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      flex: 1, 
-      height: '100%', 
-      overflow: 'hidden' 
+      flex: 1
     }}>
-      <div className="session-info" style={{ 
-        padding: '10px 15px', borderBottom: '1px solid #fce7f3', 
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' 
-      }}>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button 
-            className="small-button" 
-            onClick={() => videoCall.startCall()}
-            disabled={!videoCall.canStartCall}
-            style={{ background: '#db2777', color: '#fff', border: 'none' }}
-          >📹 Gọi Video</button>
-          {!videoCall.isVideoCallModalVisible && (videoCall.activeCalls.length > 0 || videoCall.incomingCalls.length > 0) && (
-            <button 
-              className="small-button notification-button"
-              onClick={videoCall.toggleVideoCallModal}
-              style={{ 
-                background: '#f59e0b', 
-                color: '#fff', 
-                border: 'none',
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              📞 
-              <span style={{ 
-                display: 'inline-flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                minWidth: '20px',
-                height: '20px',
-                background: '#dc2626',
-                borderRadius: '10px',
-                fontSize: '0.75rem',
-                fontWeight: 'bold'
-              }}>
-                {videoCall.activeCalls.length + videoCall.incomingCalls.length}
-              </span>
-            </button>
-          )}
-          <button className="small-button" onClick={onResetSession}>Kết thúc session</button>
-        </div>
-      </div>
+      {/* Session controls moved to AdminPage so ChatPanel can be shown/hidden independently */}
 
       {videoCall && <VideoCallPanel
         status={videoCall.status}

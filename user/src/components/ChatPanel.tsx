@@ -47,7 +47,7 @@ export const ChatPanel = ({
     }}>
       <div className="session-info">
         <div>
-          <strong>ID:</strong> {userId ?? 'Đang chờ...'}
+          <strong>ID:</strong> {userId ?? 'Waiting...'}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button 
@@ -55,9 +55,9 @@ export const ChatPanel = ({
             onClick={() => videoCall.startCall('admin')}
             disabled={!videoCall.canStartCall}
             style={{ background: '#db2777', color: '#fff', border: 'none' }}
-          >📹 Gọi Video</button>
+          >📹 Video Call</button>
           <button className="small-button" onClick={onResetSession}>
-            Bắt đầu lại
+            Restart
           </button>
         </div>
       </div>

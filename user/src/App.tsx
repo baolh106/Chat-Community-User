@@ -16,6 +16,7 @@ function App() {
     statusText,
     videoCall,
     setNickname,
+    setCaptchaToken,
     setDraft,
     setSelectedFile,
     clearAttachment,
@@ -34,6 +35,7 @@ function App() {
             nickname={nickname}
             onNicknameChange={setNickname}
             onStartSession={startSession}
+            onCaptchaChange={setCaptchaToken}
             error={error}
           />
         ) : (

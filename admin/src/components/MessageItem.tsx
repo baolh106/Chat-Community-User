@@ -14,8 +14,8 @@ const formatFileSize = (size?: number) => {
 };
 
 const getSenderLabel = (message: Message, isMine: boolean) => {
-  if (isMine) return 'Ban';
-  if (message.sender === 'system') return 'He thong';
+  if (isMine) return 'You';
+  if (message.sender === 'system') return 'System';
   return message.sender || 'User';
 };
 
@@ -66,7 +66,7 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
           <div className="file-icon">FILE</div>
           <div className="file-details">
             <a href={message.fileURL} target="_blank" rel="noreferrer" className="file-name">
-              {message.fileName || 'Tap dinh kem'}
+              {message.fileName || 'Attachment'}
             </a>
             <div className="file-meta">
               {[message.fileMimeType, formatFileSize(message.fileSize)].filter(Boolean).join(' - ')}
@@ -74,17 +74,17 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
           </div>
           {message.fileDownloadURL && (
             <a href={message.fileDownloadURL} target="_blank" rel="noreferrer" className="download-link">
-              Tai
+              Download
             </a>
           )}
         </div>
       )}
 
-      {!hasContent && !imageSrc && !hasFile && <div className="message-content">Tin nhan khong co noi dung</div>}
+      {!hasContent && !imageSrc && !hasFile && <div className="message-content">Message has no content</div>}
 
       <div className="message-meta">
         <span>{getSenderLabel(message, isMine)}</span>
-        <span>{new Date(message.createdAt).toLocaleTimeString('vi-VN')}</span>
+        <span>{new Date(message.createdAt).toLocaleTimeString('en-US')}</span>
       </div>
     </div>
   );
