@@ -54,7 +54,8 @@ const upsertMessage = (messages: Message[], nextMessage: Message) => {
       break;
     }
   }
-  if (optimisticIndex >= 0 && messages[optimisticIndex].fileURL?.startsWith('blob:')) {
+  // Sửa lỗi: Cho phép deduplicate tất cả các loại tin nhắn (text và file)
+  if (optimisticIndex >= 0) {
     const next = [...messages];
     next[optimisticIndex] = nextMessage;
     return next;
@@ -900,6 +901,24 @@ export const useChat = (): UseChatReturn => {
     setDraft('');
     selectedFileRef.current = null;
     setSelectedFileState(null);
+    
+    const newMessage: Message = {
+      content: content || null,
+      sender: 'admin',
+      receiver,
+      createdAt: new Date().toISOString(),
+      ...(file
+        ? {
+            attachmentType: isImageFile(file) ? 'image' : 'file',
+            imageURL: isImageFile(file) ? localFileURL : undefined,
+            fileURL: localFileURL,
+            fileDownloadURL: localFileURL,
+            fileName: file.name,
+            fileMimeType: file.type || 'application/octet-stream',
+            fileSize: file.size,
+          }
+        : {}),
+    };
 
     socketRef.current.emit('message:send', {
       content: content || null,
@@ -909,29 +928,7 @@ export const useChat = (): UseChatReturn => {
 
     setAllUserMessages((prevAllMessages) => {
       const currentMessages = prevAllMessages[receiver] || [];
-      return {
-        ...prevAllMessages,
-        [receiver]: [
-          ...currentMessages,
-          {
-            content: content || null,
-            sender: 'admin',
-            receiver,
-            createdAt: new Date().toISOString(),
-            ...(file
-              ? {
-                  attachmentType: isImageFile(file) ? 'image' : 'file',
-                  imageURL: isImageFile(file) ? localFileURL : undefined,
-                  fileURL: localFileURL,
-                  fileDownloadURL: localFileURL,
-                  fileName: file.name,
-                  fileMimeType: file.type || 'application/octet-stream',
-                  fileSize: file.size,
-                }
-              : {}),
-          },
-        ],
-      };
+      return { ...prevAllMessages, [receiver]: upsertMessage(currentMessages, newMessage) };
     });
 
     setIsSending(false);

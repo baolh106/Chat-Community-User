@@ -54,7 +54,8 @@ const upsertMessage = (messages: Message[], nextMessage: Message) => {
       break;
     }
   }
-  if (optimisticIndex >= 0 && messages[optimisticIndex].fileURL?.startsWith('blob:')) {
+  // Sửa lỗi: Cho phép deduplicate tất cả các loại tin nhắn (text và file)
+  if (optimisticIndex >= 0) {
     const next = [...messages];
     next[optimisticIndex] = nextMessage;
     return next;
@@ -267,11 +268,13 @@ export const useChat = (): UseChatReturn => {
 
   const STORAGE_KEY = 'user_chat_auth';
 
-  const saveAuth = (accessTokenValue: string, refreshTokenValue: string, nicknameValue: string) => {
+  const saveAuth = (accessTokenValue: string, refreshTokenValue: string, nicknameValue: string, userIdValue: string | null, messagesValue: Message[]) => {
     const payload = {
       accessToken: accessTokenValue,
       refreshToken: refreshTokenValue,
       sessionNickname: nicknameValue,
+      userId: userIdValue,
+      messages: messagesValue,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   };
@@ -300,7 +303,7 @@ export const useChat = (): UseChatReturn => {
 
         setAccessToken(token);
         setRefreshToken(refreshedRefreshToken);
-        saveAuth(token, refreshedRefreshToken, sessionNickname || nickname);
+        saveAuth(token, refreshedRefreshToken, sessionNickname || nickname, userId, messages);
         setError(null);
         refreshAttemptedRef.current = false;
         return true;
@@ -317,6 +320,13 @@ export const useChat = (): UseChatReturn => {
     return promise;
   };
 
+  // Tự động lưu session khi có thay đổi về tin nhắn, userId hoặc tokens
+  useEffect(() => {
+    if (accessToken && refreshToken && sessionNickname) {
+      saveAuth(accessToken, refreshToken, sessionNickname, userId, messages);
+    }
+  }, [accessToken, refreshToken, sessionNickname, userId, messages]);
+
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
@@ -326,11 +336,15 @@ export const useChat = (): UseChatReturn => {
         accessToken: string;
         refreshToken: string;
         sessionNickname?: string;
+        userId?: string;
+        messages?: Message[];
       };
       if (parsed.accessToken && parsed.refreshToken) {
         setAccessToken(parsed.accessToken);
         setRefreshToken(parsed.refreshToken);
         setSessionNickname(parsed.sessionNickname || '');
+        if (parsed.userId) setUserId(parsed.userId);
+        if (parsed.messages) setMessages(parsed.messages);
       }
     } catch {
       clearStoredAuth();
@@ -547,15 +561,18 @@ export const useChat = (): UseChatReturn => {
         const joinedUserId = payload.userId;
         setUserId(joinedUserId);
         setError(null);
-        setMessages((prev) => [
-          ...prev,
-          {
-            content: `Welcome ${joinedUserId}`,
-            sender: 'system',
-            receiver: joinedUserId,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
+        setMessages((prev) => {
+          // Chỉ thêm tin nhắn chào mừng nếu đây là lần đầu join (chưa có lịch sử)
+          if (prev.length > 0) return prev;
+          return [
+            {
+              content: `Welcome ${joinedUserId}`,
+              sender: 'system',
+              receiver: joinedUserId,
+              createdAt: new Date().toISOString(),
+            },
+          ];
+        });
       }
     });
 
@@ -669,7 +686,7 @@ export const useChat = (): UseChatReturn => {
       setAccessToken(token);
       setRefreshToken(refresh);
       setSessionNickname(nickname.trim());
-      saveAuth(token, refresh, nickname.trim());
+      saveAuth(token, refresh, nickname.trim(), null, []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi không xác định');
       setStatus('error');
@@ -708,6 +725,24 @@ export const useChat = (): UseChatReturn => {
     setDraft('');
     selectedFileRef.current = null;
     setSelectedFileState(null);
+    
+    const newMessage: Message = {
+      content: content || null,
+      sender: userId || 'user',
+      receiver: 'admin',
+      createdAt: new Date().toISOString(),
+      ...(file
+        ? {
+            attachmentType: isImageFile(file) ? 'image' : 'file',
+            imageURL: isImageFile(file) ? localFileURL : undefined,
+            fileURL: localFileURL,
+            fileDownloadURL: localFileURL,
+            fileName: file.name,
+            fileMimeType: file.type || 'application/octet-stream',
+            fileSize: file.size,
+          }
+        : {}),
+    };
 
     socketRef.current.emit('message:send', {
       content: content || null,
@@ -715,26 +750,7 @@ export const useChat = (): UseChatReturn => {
       ...(socketFile ? { file: socketFile } : {}),
     });
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        content: content || null,
-        sender: userId || 'user',
-        receiver: 'admin',
-        createdAt: new Date().toISOString(),
-        ...(file
-          ? {
-              attachmentType: isImageFile(file) ? 'image' : 'file',
-              imageURL: isImageFile(file) ? localFileURL : undefined,
-              fileURL: localFileURL,
-              fileDownloadURL: localFileURL,
-              fileName: file.name,
-              fileMimeType: file.type || 'application/octet-stream',
-              fileSize: file.size,
-            }
-          : {}),
-      },
-    ]);
+    setMessages((prev) => upsertMessage(prev, newMessage));
 
     setIsSending(false);
     isSendingRef.current = false;
