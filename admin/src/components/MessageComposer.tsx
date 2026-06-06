@@ -60,7 +60,17 @@ export const MessageComposer = ({
   };
 
   return (
-    <div className="composer">
+    <div 
+      className="composer" 
+      style={{ 
+        backgroundColor: '#ffffff', 
+        borderTop: '1px solid #e2e8f0', 
+        padding: '16px 20px', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '12px' 
+      }}
+    >
       {selectedFile && (
         <div className="attachment-preview">
           <div className="attachment-summary">
@@ -88,9 +98,23 @@ export const MessageComposer = ({
         }}
         placeholder="Type your message..."
         disabled={isSending}
+        style={{
+          width: '100%',
+          backgroundColor: '#ffffff',
+          border: '1px solid #e2e8f0',
+          borderRadius: '12px',
+          padding: '12px 16px',
+          fontSize: '0.95rem',
+          color: '#1e293b',
+          boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.02)',
+          outline: 'none',
+          resize: 'none',
+          minHeight: '120px',
+          fontFamily: 'inherit'
+        }}
       />
 
-      <div className="composer-actions">
+      <div className="composer-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <input
           ref={fileInputRef}
           className="file-input"
@@ -98,10 +122,38 @@ export const MessageComposer = ({
           onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
           disabled={isSending}
         />
-        <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()} disabled={isSending}>
+        <button 
+          type="button" 
+          className="secondary-button" 
+          onClick={() => fileInputRef.current?.click()} 
+          disabled={isSending}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: '1px solid #e2e8f0',
+            background: '#fff',
+            color: '#64748b',
+            cursor: 'pointer',
+            fontWeight: '500'
+          }}
+        >
           Attach
         </button>
-        <button type="button" onClick={() => void onSendMessage()} disabled={!canSend}>
+        <button 
+          type="button" 
+          onClick={() => void onSendMessage()} 
+          disabled={!canSend}
+          style={{ 
+            padding: '8px 20px', 
+            borderRadius: '8px', 
+            border: 'none', 
+            background: canSend ? '#6366f1' : '#e2e8f0', 
+            color: '#fff', 
+            cursor: canSend ? 'pointer' : 'not-allowed', 
+            fontWeight: '600',
+            transition: 'all 0.2s'
+          }}
+        >
           {isSending ? 'Sending...' : 'Send'}
         </button>
       </div>

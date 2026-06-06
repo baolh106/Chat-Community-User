@@ -38,8 +38,10 @@ export const ChatPanel = ({
   return (
     <div className="chat-panel" style={{ 
       display: 'flex', 
-      flexDirection: 'column', 
-      flex: 1
+      flexDirection: 'column',
+      flex: 1,
+      height: '100%',
+      overflow: 'hidden'
     }}>
       {/* Session controls moved to AdminPage so ChatPanel can be shown/hidden independently */}
 

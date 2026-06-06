@@ -52,8 +52,17 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
   const hasContent = Boolean(message.content);
 
   return (
-    <div className={`message-item ${isMine ? 'mine' : 'other'}`}>
-      {hasContent && <div className="message-content">{message.content}</div>}
+    <div
+      className={`message-item ${isMine ? 'mine' : 'other'}`}
+      style={{ 
+        background: isMine ? '#ececffc9' : '#ffffff',
+        color: '#1e293b',
+        border: 'none',
+        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02)',
+        borderRadius: '12px'
+      }}
+    >
+      {hasContent && <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>}
 
       {imageSrc && (
         <a href={imageSrc} target="_blank" rel="noreferrer" className="message-image-link">
