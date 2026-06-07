@@ -24,7 +24,8 @@ const imageExtensions = ['.apng', '.avif', '.gif', '.jpg', '.jpeg', '.png', '.we
 const isImageAttachment = (message: Message) => {
   if (message.attachmentType === 'image' || message.imageURL) return true;
   if (message.fileMimeType?.startsWith('image/')) return true;
-  return imageExtensions.some((extension) => message.fileName?.toLowerCase().endsWith(extension));
+  const fileName = message.fileName?.toLowerCase().trim() || '';
+  return imageExtensions.some((extension) => fileName.endsWith(extension));
 };
 
 const getDriveImageURL = (message: Message) => {
@@ -50,6 +51,7 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
   const imageSrc = getImageSrc(message);
   const hasFile = Boolean(!imageSrc && (message.attachmentType === 'file' || message.fileURL));
   const hasContent = Boolean(message.content);
+  const isSending = (message as any).status === 'sending';
 
   return (
     <div
@@ -59,7 +61,11 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
         color: '#1e293b',
         border: 'none',
         boxShadow: '0 4px 15px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02)',
-        borderRadius: '12px'
+        borderRadius: '12px',
+        width: 'fit-content',
+        maxWidth: '85%',
+        wordBreak: 'break-word',
+        opacity: (message as any).status === 'sending' ? 0.6 : 1
       }}
     >
       {hasContent && <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>}
@@ -89,7 +95,17 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
         </div>
       )}
 
-      {!hasContent && !imageSrc && !hasFile && <div className="message-content">Message has no content</div>}
+      {!hasContent && !imageSrc && !hasFile && (
+        <div className="message-content">
+          {isSending || message.fileName ? (
+            <span style={{ fontStyle: 'italic', opacity: 0.7 }}>
+              {message.fileName ? `Processing ${message.fileName}...` : 'Sending...'}
+            </span>
+          ) : (
+            'Message has no content'
+          )}
+        </div>
+      )}
 
       <div className="message-meta">
         <span>{getSenderLabel(message, isMine)}</span>

@@ -1,100 +1,53 @@
-import type { Message } from '../types';
+import { useChat } from '../hooks/useChat';
+import { LoginPanel } from './LoginPanel';
+import { ChatPanel } from './ChatPanel';
 
-interface MessageItemProps {
-  message: Message;
-  isMine: boolean;
-  userId: string | null;
-}
+export const UserPage = () => {
+  const chat = useChat();
+  const { sessionNickname, nickname, setNickname, startSession, setCaptchaToken, error } = chat;
 
-const formatFileSize = (size?: number) => {
-  if (!size) return '';
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-};
-
-const getSenderLabel = (message: Message, isMine: boolean) => {
-  if (isMine) return 'You';
-  if (message.sender === 'system') return 'System';
-  return 'Admin';
-};
-
-const imageExtensions = ['.apng', '.avif', '.gif', '.jpg', '.jpeg', '.png', '.webp'];
-
-const isImageAttachment = (message: Message) => {
-  if (message.attachmentType === 'image' || message.imageURL) return true;
-  if (message.fileMimeType?.startsWith('image/')) return true;
-  return imageExtensions.some((extension) => message.fileName?.toLowerCase().endsWith(extension));
-};
-
-const getDriveImageURL = (message: Message) => {
-  if (message.fileDriveId) {
-    return `https://drive.google.com/thumbnail?id=${message.fileDriveId}&sz=w1000`;
-  }
-
-  const driveFileId = (message.imageURL || message.fileURL)?.match(/\/file\/d\/([^/]+)/)?.[1];
-  return driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w1000` : null;
-};
-
-const getImageSrc = (message: Message) => {
-  if (!isImageAttachment(message)) return null;
-
-  const sourceURL = message.imageURL || message.fileURL || message.fileDownloadURL || null;
-  if (!sourceURL) return null;
-  if (sourceURL.startsWith('blob:')) return sourceURL;
-
-  return getDriveImageURL(message) || sourceURL;
-};
-
-export const MessageItem = ({ message, isMine }: MessageItemProps) => {
-  const imageSrc = getImageSrc(message);
-  const hasFile = Boolean(!imageSrc && (message.attachmentType === 'file' || message.fileURL));
-  const hasContent = Boolean(message.content);
+  const isLoggingIn = !sessionNickname;
 
   return (
-    <div
-      className={`message-item ${isMine ? 'mine' : 'other'}`}
-      style={{ 
-        background: isMine ? '#fff3fdb9' : '#ffffff',
-        color: '#1e293b',
-        border: 'none',
-        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02)',
-        borderRadius: '12px'
-      }}
-    >
-      {hasContent && <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>}
-
-      {imageSrc && (
-        <a href={imageSrc} target="_blank" rel="noreferrer" className="message-image-link">
-          <img src={imageSrc} alt={message.fileName || 'attachment'} className="message-image" />
-        </a>
-      )}
-
-      {hasFile && (
-        <div className="message-file">
-          <div className="file-icon">FILE</div>
-          <div className="file-details">
-              <a href={message.fileURL} target="_blank" rel="noreferrer" className="file-name">
-              {message.fileName || 'Attachment'}
-            </a>
-            <div className="file-meta">
-              {[message.fileMimeType, formatFileSize(message.fileSize)].filter(Boolean).join(' - ')}
-            </div>
-          </div>
-          {message.fileDownloadURL && (
-            <a href={message.fileDownloadURL} target="_blank" rel="noreferrer" className="download-link">
-              Download
-            </a>
-          )}
+    <div className="user-page-wrapper" style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      backgroundColor: '#fdf2f8'
+    }}>
+      {isLoggingIn ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+          <LoginPanel
+            nickname={nickname}
+            onNicknameChange={setNickname}
+            onStartSession={startSession}
+            onCaptchaChange={setCaptchaToken}
+            error={error}
+          />
         </div>
+      ) : (
+        <ChatPanel
+          sessionNickname={chat.sessionNickname}
+          userId={chat.userId}
+          messages={chat.messages}
+          draft={chat.draft}
+          selectedFile={chat.selectedFile}
+          isSending={chat.isSending}
+          error={chat.error}
+          onDraftChange={chat.setDraft}
+          onFileChange={chat.setSelectedFile}
+          onClearAttachment={chat.clearAttachment}
+          onSendMessage={chat.sendMessage}
+          onResetSession={chat.resetSession}
+          canSend={chat.canSend}
+          videoCall={chat.videoCall}
+        />
       )}
-
-      {!hasContent && !imageSrc && !hasFile && <div className="message-content">Message has no content</div>}
-
-      <div className="message-meta">
-        <span>{getSenderLabel(message, isMine)}</span>
-        <span>{new Date(message.createdAt).toLocaleTimeString('en-US')}</span>
-      </div>
     </div>
   );
 };

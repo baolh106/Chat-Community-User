@@ -30,10 +30,13 @@ export const MessageList = ({ messages, userId }: MessageListProps) => {
       ) : (
         messages.map((message) => {
           const isMine = message.sender === userId || message.sender === 'user';
-          // Sử dụng kết hợp sender và createdAt để tạo key duy nhất nếu message.id chưa có
           return (
             <MessageItem
-              key={`${message.sender}-${message.createdAt}`}
+              key={
+                (message as any).id || 
+                (message as any).tempId || 
+                `${message.sender}-${message.createdAt}`
+              }
               message={message}
               isMine={isMine}
               userId={userId}

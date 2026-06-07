@@ -10,7 +10,12 @@ const MAX_ATTACHMENT_SIZE = MAX_ATTACHMENT_SIZE_MB * 1024 * 1024;
 const toBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
+    reader.onload = () => {
+      const result = String(reader.result);
+      // Tách bỏ phần prefix "data:*/*;base64," để lấy chuỗi base64 thuần túy
+      const base64Part = result.split(',')[1];
+      resolve(base64Part || result);
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -28,37 +33,23 @@ const mapMessageError = (reason?: string) => {
 
 const createCallId = () => crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const upsertMessage = (messages: Message[], nextMessage: Message) => {
-  const duplicateIndex = messages.findIndex(
-    (message) =>
-      message.createdAt === nextMessage.createdAt &&
-      message.sender === nextMessage.sender &&
-      message.receiver === nextMessage.receiver
+const upsertMessage = (messages: Message[], nextMessage: any) => {
+  const index = messages.findIndex(m => 
+    (nextMessage.id && (m as any).id === nextMessage.id) ||
+    (nextMessage.tempId && (m as any).tempId === nextMessage.tempId) ||
+    (m.sender === nextMessage.sender && m.content === nextMessage.content && 
+    Math.abs(new Date(m.createdAt).getTime() - new Date(nextMessage.createdAt).getTime()) < 2000)
   );
-  if (duplicateIndex >= 0) {
+
+  if (index >= 0) {
     const next = [...messages];
-    next[duplicateIndex] = nextMessage;
+    next[index] = { ...next[index], ...nextMessage };
     return next;
   }
 
-  let optimisticIndex = -1;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (
-      message.sender === nextMessage.sender &&
-      message.receiver === nextMessage.receiver &&
-      message.content === nextMessage.content &&
-      message.fileName === nextMessage.fileName
-    ) {
-      optimisticIndex = index;
-      break;
-    }
-  }
-  // Sửa lỗi: Cho phép deduplicate tất cả các loại tin nhắn (text và file)
-  if (optimisticIndex >= 0) {
-    const next = [...messages];
-    next[optimisticIndex] = nextMessage;
-    return next;
+  // Ngăn chặn việc tạo tin nhắn rác khi không tìm thấy tempId để update status
+  if (!nextMessage.sender || !nextMessage.createdAt) {
+    return messages;
   }
 
   return [...messages, nextMessage];
@@ -747,8 +738,53 @@ export const useChat = (): UseChatReturn => {
       }
     });
 
-    socket.on('message:sent', () => {
-      // Server accepted the message.
+    socket.on('message:send:ack', (payload: any) => {
+      if (payload.ok && payload.message) {
+        const targetUserId = payload.message.receiver;
+        setAllUserMessages(prev => {
+          const current = prev[targetUserId] || [];
+          return { 
+            ...prev, 
+            [targetUserId]: upsertMessage(current, { 
+              ...payload.message, 
+              tempId: payload.tempId, 
+              status: 'sent' 
+            }) 
+          };
+        });
+      }
+    });
+
+    socket.on('message:uploading', (payload: any) => {
+      const targetUserId = payload.receiver || selectedUserIdRef.current;
+      if (!targetUserId) return;
+      setAllUserMessages((prev) => {
+        const current = prev[targetUserId] || [];
+        return {
+          ...prev,
+          [targetUserId]: upsertMessage(current, {
+            tempId: payload.tempId,
+            status: 'sending',
+            fileName: payload.fileName,
+          })
+        };
+      });
+    });
+
+    socket.on('message:upload:error', (payload: any) => {
+      setError(mapMessageError(payload.reason));
+      const targetUserId = payload.receiver || selectedUserIdRef.current;
+      if (!targetUserId) return;
+      setAllUserMessages((prev) => {
+        const current = prev[targetUserId] || [];
+        return {
+          ...prev,
+          [targetUserId]: upsertMessage(current, {
+            tempId: payload.tempId,
+            status: 'failed'
+          })
+        };
+      });
     });
 
     socket.on('message:error', (payload: SocketPayload) => {
@@ -875,6 +911,7 @@ export const useChat = (): UseChatReturn => {
       return;
     }
 
+    const tempId = createCallId(); // Sử dụng helper đã có để tạo UUID
     isSendingRef.current = true;
     setIsSending(true);
 
@@ -902,11 +939,13 @@ export const useChat = (): UseChatReturn => {
     selectedFileRef.current = null;
     setSelectedFileState(null);
     
-    const newMessage: Message = {
+    const newMessage: any = {
+      tempId,
       content: content || null,
       sender: 'admin',
       receiver,
       createdAt: new Date().toISOString(),
+      status: 'sending',
       ...(file
         ? {
             attachmentType: isImageFile(file) ? 'image' : 'file',
@@ -920,15 +959,16 @@ export const useChat = (): UseChatReturn => {
         : {}),
     };
 
-    socketRef.current.emit('message:send', {
-      content: content || null,
-      receiver,
-      ...(socketFile ? { file: socketFile } : {}),
-    });
-
     setAllUserMessages((prevAllMessages) => {
       const currentMessages = prevAllMessages[receiver] || [];
       return { ...prevAllMessages, [receiver]: upsertMessage(currentMessages, newMessage) };
+    });
+
+    socketRef.current.emit('message:send', {
+      tempId,
+      content: content || null,
+      receiver,
+      ...(socketFile ? { file: socketFile } : {}),
     });
 
     setIsSending(false);

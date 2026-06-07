@@ -27,10 +27,9 @@ export const MessageList = ({ messages, userId }: MessageListProps) => {
       ) : (
         messages.map((message) => {
           const isMine = message.sender === userId || message.sender === 'user';
-          // Sử dụng key duy nhất thay vì index để tối ưu hiệu năng render
           return (
             <MessageItem
-              key={`${message.sender}-${message.createdAt}`}
+              key={(message as any).id || (message as any).tempId || `${message.sender}-${message.createdAt}`}
               message={message}
               isMine={isMine}
               userId={userId}
