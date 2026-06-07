@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
 import type { Message } from '../types';
@@ -37,6 +38,8 @@ export const ChatPanel = ({
   canSend,
   videoCall,
 }: ChatPanelProps) => {
+  const [isCallHovered, setIsCallHovered] = useState(false);
+
   return (
     <div className="chat-panel" style={{ 
       display: 'flex', 
@@ -45,17 +48,31 @@ export const ChatPanel = ({
       height: '100%', 
       overflow: 'hidden' 
     }}>
-      <div className="session-info">
+      <div className="session-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid #fbcfe8' }}>
         <div>
           <strong>Nickname:</strong> {sessionNickname}
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button 
-            className="small-button" 
             onClick={() => videoCall.startCall('admin')}
             disabled={!videoCall.canStartCall}
-            style={{ background: '#db2777', color: '#fff', border: 'none' }}
-          >📹 Video Call</button>
+            onMouseEnter={() => setIsCallHovered(true)}
+            onMouseLeave={() => setIsCallHovered(false)}
+            title="Video Call"
+            style={{ 
+              background: videoCall.canStartCall && isCallHovered ? 'rgba(219, 39, 119, 0.15)' : 'rgba(219, 39, 119, 0.08)', 
+              color: videoCall.canStartCall ? '#db2777' : '#cbd5e1', 
+              border: 'none',
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              cursor: videoCall.canStartCall ? 'pointer' : 'not-allowed',
+              fontSize: '1.2rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >📞</button>
           <button className="small-button" onClick={onResetSession}>
             Restart
           </button>

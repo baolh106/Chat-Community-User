@@ -6,6 +6,7 @@ import type { VideoCallState } from '../hooks/useChat';
 
 interface ChatPanelProps {
   userId: string;
+  targetUserId: string | null;
   messages: Message[];
   draft: string;
   selectedFiles: File[];
@@ -22,6 +23,7 @@ interface ChatPanelProps {
 
 export const ChatPanel = ({
   userId,
+  targetUserId,
   messages,
   draft,
   selectedFiles,
@@ -43,7 +45,34 @@ export const ChatPanel = ({
       height: '100%',
       overflow: 'hidden'
     }}>
-      {/* Session controls moved to AdminPage so ChatPanel can be shown/hidden independently */}
+      <div className="session-info" style={{ 
+        padding: '12px 20px', 
+        borderBottom: '1px solid #e2e8f0', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        backgroundColor: '#fff'
+      }}>
+        <div style={{ fontWeight: '600', color: '#1e293b' }}>
+          User: <span style={{ color: '#6366f1' }}>{targetUserId}</span>
+        </div>
+        <button 
+          onClick={() => videoCall.startCall()}
+          disabled={!videoCall.canStartCall}
+          title="Video Call"
+          style={{ 
+            background: 'none', 
+            color: videoCall.canStartCall ? '#6366f1' : '#cbd5e1', 
+            border: 'none',
+            padding: '4px',
+            cursor: videoCall.canStartCall ? 'pointer' : 'not-allowed',
+            fontSize: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >📞</button>
+      </div>
 
       {videoCall && <VideoCallPanel
         status={videoCall.status}

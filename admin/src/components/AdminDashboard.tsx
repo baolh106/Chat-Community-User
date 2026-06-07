@@ -140,6 +140,7 @@ export const AdminDashboard = ({ chat }: AdminDashboardProps) => {
               {selectedUserId ? (
                 <ChatPanel
                   userId="admin"
+                  targetUserId={selectedUserId}
                   messages={messages}
                   draft={draft}
                   selectedFiles={selectedFiles}
