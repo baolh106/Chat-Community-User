@@ -1,9 +1,24 @@
-import { useRef, type ClipboardEvent } from 'react';
+import { useRef, useState, useEffect, type ClipboardEvent } from 'react';
 
 const formatFileSize = (size: number) => {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const ImageThumbnail = ({ file }: { file: File }) => {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  if (!url) return null;
+  return (
+    <img src={url} alt="preview" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} />
+  );
 };
 
 interface MessageComposerProps {
@@ -75,7 +90,11 @@ export const MessageComposer = ({
           {selectedFiles.map((file, index) => (
             <div key={`${file.name}-${index}`} className="attachment-preview">
               <div className="attachment-summary">
-                <span className="attachment-icon">{file.type.startsWith('image/') ? 'IMG' : 'FILE'}</span>
+                {file.type.startsWith('image/') ? (
+                  <ImageThumbnail file={file} />
+                ) : (
+                  <span className="attachment-icon">FILE</span>
+                )}
                 <div>
                   <div className="attachment-name">{file.name}</div>
                   <div className="attachment-size">{formatFileSize(file.size)}</div>

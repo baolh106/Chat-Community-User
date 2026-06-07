@@ -710,8 +710,15 @@ export const useChat = (): UseChatReturn => {
 
     socket.on('admin:joined', async (payload: { ok: boolean; userIds?: string[]; history?: Record<string, Message[]>; reason?: string }) => {
       if (payload.ok && payload.userIds) {
+        const rawHistory = payload.history || {};
+        const normalizedHistory: Record<string, Message[]> = {};
+        
+        Object.keys(rawHistory).forEach((uid) => {
+          normalizedHistory[uid] = rawHistory[uid].map((m) => normalizeMessage(m));
+        });
+
         setOnlineUsers(payload.userIds);
-        setAllUserMessages(payload.history || {});
+        setAllUserMessages(normalizedHistory);
         setError(null);
 
         // Fetch unread counts once on join

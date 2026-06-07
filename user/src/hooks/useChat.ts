@@ -752,11 +752,12 @@ export const useChat = (): UseChatReturn => {
       return;
     }
 
-    // Ngắt kết nối và dọn dẹp state cũ ngay lập tức để tránh gửi tin nhắn bằng danh tính cũ
+    // Dọn dẹp tuyệt đối để tránh dính tin nhắn từ localStorage/phiên cũ
     socketRef.current?.disconnect();
     socketRef.current = null;
     setSocketConnected(false);
     setUserId(null);
+    clearStoredAuth(); // Xóa sạch localStorage trước khi bắt đầu phiên mới
     setMessages([]);
 
     setError(null);
@@ -773,7 +774,7 @@ export const useChat = (): UseChatReturn => {
       setAccessToken(token);
       setRefreshToken(refresh);
       setSessionNickname(nickname.trim());
-      saveAuth(token, refresh, nickname.trim(), null, []);
+      saveAuth(token, refresh, nickname.trim(), null, []); // Lưu trạng thái trống mới
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi không xác định');
       setStatus('error');
