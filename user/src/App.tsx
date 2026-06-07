@@ -9,7 +9,7 @@ function App() {
     userId,
     messages,
     draft,
-    selectedFile,
+    selectedFiles,
     isSending,
     error,
     canSend,
@@ -18,7 +18,7 @@ function App() {
     setNickname,
     setCaptchaToken,
     setDraft,
-    setSelectedFile,
+    setSelectedFiles,
     clearAttachment,
     startSession,
     sendMessage,
@@ -44,11 +44,11 @@ function App() {
             userId={userId}
             messages={messages}
             draft={draft}
-            selectedFile={selectedFile}
+            selectedFiles={selectedFiles}
             isSending={isSending}
             error={error}
             onDraftChange={setDraft}
-            onFileChange={setSelectedFile}
+            onFileChange={setSelectedFiles}
             onClearAttachment={clearAttachment}
             onSendMessage={sendMessage}
             onResetSession={resetSession}

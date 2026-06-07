@@ -36,11 +36,11 @@ export const UserPage = () => {
           userId={chat.userId}
           messages={chat.messages}
           draft={chat.draft}
-          selectedFile={chat.selectedFile}
+          selectedFiles={chat.selectedFiles}
           isSending={chat.isSending}
           error={chat.error}
           onDraftChange={chat.setDraft}
-          onFileChange={chat.setSelectedFile}
+          onFileChange={chat.setSelectedFiles}
           onClearAttachment={chat.clearAttachment}
           onSendMessage={chat.sendMessage}
           onResetSession={chat.resetSession}

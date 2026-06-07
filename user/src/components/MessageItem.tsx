@@ -19,39 +19,46 @@ const getSenderLabel = (message: Message, isMine: boolean) => {
   return 'Admin';
 };
 
-const imageExtensions = ['.apng', '.avif', '.gif', '.jpg', '.jpeg', '.png', '.webp'];
-
-const isImageAttachment = (message: Message) => {
-  if (message.attachmentType === 'image' || message.imageURL) return true;
-  if (message.fileMimeType?.startsWith('image/')) return true;
-  const fileName = message.fileName?.toLowerCase().trim() || '';
-  return imageExtensions.some((extension) => fileName.endsWith(extension));
+const getDisplayURL = (url: string) => {
+  if (!url || url.startsWith('blob:')) return url;
+  const driveFileId = url.match(/\/file\/d\/([^/]+)/)?.[1];
+  return driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w1000` : url;
 };
 
-const getDriveImageURL = (message: Message) => {
-  if (message.fileDriveId) {
-    return `https://drive.google.com/thumbnail?id=${message.fileDriveId}&sz=w1000`;
-  }
+const AttachmentList = ({ message }: { message: Message }) => {
+  if (!message.attachments || message.attachments.length === 0) return null;
 
-  const driveFileId = (message.imageURL || message.fileURL)?.match(/\/file\/d\/([^/]+)/)?.[1];
-  return driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w1000` : null;
-};
-
-const getImageSrc = (message: Message) => {
-  if (!isImageAttachment(message)) return null;
-
-  const sourceURL = message.imageURL || message.fileURL || message.fileDownloadURL || null;
-  if (!sourceURL) return null;
-  if (sourceURL.startsWith('blob:')) return sourceURL;
-
-  return getDriveImageURL(message) || sourceURL;
+  return (
+    <div className="message-attachments" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+      {message.attachments.map((att, index) => (
+        <div key={index} className="attachment-item">
+          {att.type === 'image' ? (
+            <a href={att.url} target="_blank" rel="noreferrer" className="message-image-link">
+              <img src={getDisplayURL(att.url)} alt={att.name} className="message-image" />
+            </a>
+          ) : (
+            <div className="message-file" style={{ background: 'rgba(0,0,0,0.03)', borderRadius: '8px', padding: '8px' }}>
+              <div className="file-icon">FILE</div>
+              <div className="file-details">
+                <a href={att.url} target="_blank" rel="noreferrer" className="file-name">
+                  {att.name}
+                </a>
+                <div className="file-meta">
+                  {formatFileSize(att.size)}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 };
 
 export const MessageItem = ({ message, isMine }: MessageItemProps) => {
-  const imageSrc = getImageSrc(message);
-  const hasFile = Boolean(!imageSrc && (message.attachmentType === 'file' || message.fileURL));
   const hasContent = Boolean(message.content);
   const isSending = (message as any).status === 'sending';
+  const hasAttachments = Boolean(message.hasAttachments || (message.attachments && message.attachments.length > 0));
 
   return (
     <div
@@ -70,32 +77,9 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
     >
       {hasContent && <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>}
 
-      {imageSrc && (
-        <a href={imageSrc} target="_blank" rel="noreferrer" className="message-image-link">
-          <img src={imageSrc} alt={message.fileName || 'attachment'} className="message-image" />
-        </a>
-      )}
+      <AttachmentList message={message} />
 
-      {hasFile && (
-        <div className="message-file">
-          <div className="file-icon">FILE</div>
-          <div className="file-details">
-              <a href={message.fileURL} target="_blank" rel="noreferrer" className="file-name">
-              {message.fileName || 'Attachment'}
-            </a>
-            <div className="file-meta">
-              {[message.fileMimeType, formatFileSize(message.fileSize)].filter(Boolean).join(' - ')}
-            </div>
-          </div>
-          {message.fileDownloadURL && (
-            <a href={message.fileDownloadURL} target="_blank" rel="noreferrer" className="download-link">
-              Download
-            </a>
-          )}
-        </div>
-      )}
-
-      {!hasContent && !imageSrc && !hasFile && (
+      {!hasContent && !hasAttachments && (
         <div className="message-content">
           {isSending || message.fileName ? (
             <span style={{ fontStyle: 'italic', opacity: 0.7 }}>

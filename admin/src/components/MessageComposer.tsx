@@ -8,10 +8,10 @@ const formatFileSize = (size: number) => {
 
 interface MessageComposerProps {
   draft: string;
-  selectedFile: File | null;
+  selectedFiles: File[];
   isSending: boolean;
   onDraftChange: (value: string) => void;
-  onFileChange: (file: File | null) => void;
+  onFileChange: (files: File[]) => void;
   onClearAttachment: () => void;
   onSendMessage: () => void | Promise<void>;
   canSend: boolean;
@@ -19,7 +19,7 @@ interface MessageComposerProps {
 
 export const MessageComposer = ({
   draft,
-  selectedFile,
+  selectedFiles,
   isSending,
   onDraftChange,
   onFileChange,
@@ -34,28 +34,37 @@ export const MessageComposer = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const removeFile = (indexToRemove: number) => {
+    onFileChange(selectedFiles.filter((_, index) => index !== indexToRemove));
+  };
+
   const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     if (isSending) return;
 
-    const imageItem = Array.from(event.clipboardData.items).find(
+    const imageItems = Array.from(event.clipboardData.items).filter(
       (item) => item.kind === 'file' && item.type.startsWith('image/')
     );
-    const pastedFile = imageItem?.getAsFile();
 
-    if (!pastedFile) return;
+    if (imageItems.length === 0) return;
 
     event.preventDefault();
+    const newFiles: File[] = [];
 
-    const extension = pastedFile.type.split('/')[1] || 'png';
-    const file =
-      pastedFile.name.length > 0
-        ? pastedFile
-        : new File([pastedFile], `pasted-image.${extension}`, {
-            type: pastedFile.type || 'image/png',
-            lastModified: Date.now(),
-          });
+    imageItems.forEach((item, index) => {
+      const pastedFile = item.getAsFile();
+      if (pastedFile) {
+        const extension = pastedFile.type.split('/')[1] || 'png';
+        const file = pastedFile.name.length > 0 && pastedFile.name !== 'image.png'
+          ? pastedFile
+          : new File([pastedFile], `pasted-image-${Date.now()}-${index}.${extension}`, {
+              type: pastedFile.type || 'image/png',
+              lastModified: Date.now(),
+            });
+        newFiles.push(file);
+      }
+    });
 
-    onFileChange(file);
+    onFileChange([...selectedFiles, ...newFiles]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -71,18 +80,33 @@ export const MessageComposer = ({
         gap: '12px' 
       }}
     >
-      {selectedFile && (
-        <div className="attachment-preview">
-          <div className="attachment-summary">
-            <span className="attachment-icon">{selectedFile.type.startsWith('image/') ? 'IMG' : 'FILE'}</span>
-            <div>
-              <div className="attachment-name">{selectedFile.name}</div>
-              <div className="attachment-size">{formatFileSize(selectedFile.size)}</div>
+      {selectedFiles.length > 0 && (
+        <div className="attachment-previews" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {selectedFiles.map((file, index) => (
+            <div key={`${file.name}-${index}`} className="attachment-preview" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px' }}>
+              <div className="attachment-summary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="attachment-icon" style={{ fontSize: '0.8rem', background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>{file.type.startsWith('image/') ? 'IMG' : 'FILE'}</span>
+                <div>
+                  <div className="attachment-name" style={{ fontSize: '0.9rem', fontWeight: '500' }}>{file.name}</div>
+                  <div className="attachment-size" style={{ fontSize: '0.8rem', color: '#64748b' }}>{formatFileSize(file.size)}</div>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => removeFile(index)} 
+                disabled={isSending} 
+                style={{ border: 'none', background: 'none', color: '#64748b', cursor: 'pointer', fontSize: '1.1rem', padding: '4px' }}
+                title="Gỡ bỏ"
+              >
+                ✕
+              </button>
             </div>
-          </div>
-          <button className="icon-button" type="button" onClick={clearAttachment} disabled={isSending}>
-            Xóa
-          </button>
+          ))}
+          {selectedFiles.length > 1 && (
+            <button type="button" onClick={clearAttachment} disabled={isSending} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', alignSelf: 'flex-end', padding: '4px 0' }}>
+              Xóa tất cả ({selectedFiles.length})
+            </button>
+          )}
         </div>
       )}
 
@@ -119,7 +143,8 @@ export const MessageComposer = ({
           ref={fileInputRef}
           className="file-input"
           type="file"
-          onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+          multiple
+          onChange={(e) => onFileChange(Array.from(e.target.files ?? []))}
           disabled={isSending}
         />
         <button 

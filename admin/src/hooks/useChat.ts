@@ -7,6 +7,8 @@ import type { Message, SocketPayload, ChatStatus, SocketFilePayload, CallInfo } 
 const MAX_ATTACHMENT_SIZE_MB = 10;
 const MAX_ATTACHMENT_SIZE = MAX_ATTACHMENT_SIZE_MB * 1024 * 1024;
 
+const IMAGE_EXTENSIONS = ['.apng', '.avif', '.gif', '.jpg', '.jpeg', '.png', '.webp'];
+
 const toBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -20,7 +22,10 @@ const toBase64 = (file: File) =>
     reader.readAsDataURL(file);
   });
 
-const isImageFile = (file: File) => file.type.startsWith('image/');
+const isImageFile = (file: File) => {
+  if (file.type.startsWith('image/')) return true;
+  return IMAGE_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext));
+};
 
 const mapMessageError = (reason?: string) => {
   if (reason === 'file_too_large') return `File vượt quá giới hạn ${MAX_ATTACHMENT_SIZE_MB}MB`;
@@ -33,17 +38,50 @@ const mapMessageError = (reason?: string) => {
 
 const createCallId = () => crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+const normalizeMessage = (m: any): Message => {
+  const attachments = Array.isArray(m.attachments) ? m.attachments.map((att: any) => {
+    const name = att.name || att.fileName || '';
+    const mimeType = att.mimeType || att.fileMimeType || '';
+    const isImg = mimeType.startsWith('image/') || IMAGE_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
+
+    return {
+      ...att,
+      url: att.url || att.fileURL,
+      name,
+      type: att.type || att.attachmentType || (isImg ? 'image' : 'file')
+    };
+  }) : [];
+
+  if (m.fileURL && !attachments.some((a: any) => a.url === m.fileURL)) {
+    const isImg = (m.fileMimeType?.startsWith('image/') || m.imageURL || IMAGE_EXTENSIONS.some((ext: string) => m.fileName?.toLowerCase().endsWith(ext)));
+    attachments.push({
+      url: m.fileURL,
+      name: m.fileName,
+      mimeType: m.fileMimeType,
+      size: m.fileSize,
+      type: m.attachmentType || (isImg ? 'image' : 'file')
+    });
+  }
+
+  return {
+    ...m,
+    attachments: attachments.length > 0 ? attachments : undefined
+  };
+};
+
 const upsertMessage = (messages: Message[], nextMessage: any) => {
-  const index = messages.findIndex(m => 
+  const normalized = normalizeMessage(nextMessage);
+
+  const index = messages.findIndex(m =>
     (nextMessage.id && (m as any).id === nextMessage.id) ||
     (nextMessage.tempId && (m as any).tempId === nextMessage.tempId) ||
-    (m.sender === nextMessage.sender && m.content === nextMessage.content && 
+    (m.sender === nextMessage.sender && m.content === nextMessage.content &&
     Math.abs(new Date(m.createdAt).getTime() - new Date(nextMessage.createdAt).getTime()) < 2000)
   );
 
   if (index >= 0) {
     const next = [...messages];
-    next[index] = { ...next[index], ...nextMessage };
+    next[index] = { ...next[index], ...normalized };
     return next;
   }
 
@@ -52,7 +90,7 @@ const upsertMessage = (messages: Message[], nextMessage: any) => {
     return messages;
   }
 
-  return [...messages, nextMessage];
+  return [...messages, normalized];
 };
 
 export interface VideoCallState {
@@ -82,7 +120,7 @@ interface UseChatReturn {
   unreadCounts: Record<string, number>;
   messages: Message[];
   draft: string;
-  selectedFile: File | null;
+  selectedFiles: File[];
   isSending: boolean;
   error: string | null;
   canSend: boolean;
@@ -91,7 +129,7 @@ interface UseChatReturn {
   setPassword: (value: string) => void;
   setCaptchaToken: (token: string | null) => void;
   setDraft: (value: string) => void;
-  setSelectedFile: (file: File | null) => void;
+  setSelectedFiles: (files: File[]) => void;
   clearAttachment: () => void;
   setSelectedUserId: (userId: string | null) => void;
   startSession: () => Promise<void>;
@@ -113,7 +151,7 @@ export const useChat = (): UseChatReturn => {
   const [allUserMessages, setAllUserMessages] = useState<Record<string, Message[]>>({});
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [draft, setDraft] = useState('');
-  const [selectedFileState, setSelectedFileState] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,7 +164,7 @@ export const useChat = (): UseChatReturn => {
 
   const socketRef = useRef<Socket | null>(null);
   const draftRef = useRef(draft);
-  const selectedFileRef = useRef<File | null>(selectedFileState);
+  const selectedFilesRef = useRef<File[]>(selectedFiles);
   const isSendingRef = useRef(isSending);
   const userIdRef = useRef(userId);
   const selectedUserIdRef = useRef(selectedUserId);
@@ -145,7 +183,7 @@ export const useChat = (): UseChatReturn => {
   const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
 
   const canSend = Boolean(
-    socketConnected && selectedUserId && !isSending && (draft.trim().length > 0 || selectedFileState)
+    socketConnected && selectedUserId && !isSending && (draft.trim().length > 0 || selectedFiles.length > 0)
   );
 
   const statusText = useMemo(() => {
@@ -171,10 +209,30 @@ export const useChat = (): UseChatReturn => {
     localStorage.removeItem(STORAGE_KEY);
   };
 
+  const resetSession = () => {
+    setAccessToken(null);
+    setRefreshToken(null);
+    setSessionNickname('');
+    setUserId(null);
+    setOnlineUsers([]);
+    setSelectedUserId(null);
+    setAllUserMessages({});
+    setSelectedFiles([]);
+    setIsSending(false);
+    setStatus('idle');
+    setError(null);
+    socketRef.current?.disconnect();
+    socketRef.current = null;
+    clearStoredAuth();
+  };
+
   const tryRefreshSession = async () => {
-    if (!refreshToken) {
+    if (!refreshToken || refreshToken.trim() === '') {
+      setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+      resetSession();
       return false;
     }
+
     if (refreshPromiseRef.current) {
       return refreshPromiseRef.current;
     }
@@ -229,41 +287,12 @@ export const useChat = (): UseChatReturn => {
   }, []);
 
   useEffect(() => {
-    refreshAttemptedRef.current = false;
-  }, [accessToken]);
-
-  // Fetch unread counts for online users when list or accessToken changes
-  useEffect(() => {
-    const fetchAll = async () => {
-      if (!accessToken) return;
-      try {
-        const entries = await Promise.all(
-          onlineUsers.map(async (u) => {
-            try {
-              const res = await api.getUnreadCount(u, 'admin', accessToken);
-              return [u, (res?.data?.unreadCount as number) || 0] as const;
-            } catch {
-              return [u, 0] as const;
-            }
-          })
-        );
-        const map: Record<string, number> = {};
-        for (const [u, count] of entries) map[u] = count;
-        setUnreadCounts(map);
-      } catch {
-        // ignore
-      }
-    };
-    fetchAll();
-  }, [onlineUsers, accessToken]);
-
-  useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
 
   useEffect(() => {
-    selectedFileRef.current = selectedFileState;
-  }, [selectedFileState]);
+    selectedFilesRef.current = selectedFiles;
+  }, [selectedFiles]);
 
   useEffect(() => {
     isSendingRef.current = isSending;
@@ -663,7 +692,7 @@ export const useChat = (): UseChatReturn => {
       const message = err?.message || '';
       const isAuthError = /unauthorized|token|expired|jwt|authentication/i.test(message);
 
-      if (isAuthError && refreshToken && !refreshAttemptedRef.current) {
+      if (isAuthError && !refreshAttemptedRef.current) {
         refreshAttemptedRef.current = true;
         socket.disconnect();
         socketRef.current = null;
@@ -679,11 +708,24 @@ export const useChat = (): UseChatReturn => {
       cleanupAllCalls();
     });
 
-    socket.on('admin:joined', (payload: { ok: boolean; userIds?: string[]; history?: Record<string, Message[]>; reason?: string }) => {
+    socket.on('admin:joined', async (payload: { ok: boolean; userIds?: string[]; history?: Record<string, Message[]>; reason?: string }) => {
       if (payload.ok && payload.userIds) {
         setOnlineUsers(payload.userIds);
         setAllUserMessages(payload.history || {});
         setError(null);
+
+        // Fetch unread counts once on join
+        try {
+          const entries = await Promise.all(payload.userIds.map(async id => {
+            try {
+              const res = await api.getUnreadCount(id, 'admin', accessToken || '');
+              return [id, res?.data?.unreadCount || 0];
+            } catch { return [id, 0]; }
+          }));
+          setUnreadCounts(Object.fromEntries(entries));
+        } catch {
+          // ignore
+        }
       } else {
         setError(payload.reason || 'Admin join bi tu choi');
       }
@@ -693,10 +735,16 @@ export const useChat = (): UseChatReturn => {
       const newUserId = typeof payload === 'string' ? payload : (payload as { userId?: string })?.userId;
 
       if (newUserId) {
-        setOnlineUsers((prev) => {
-          if (prev.includes(newUserId)) return prev;
-          return [newUserId, ...prev];
-        });
+        // Đẩy user mới lên đầu và lọc bỏ ID trùng nếu có
+        setOnlineUsers((prev) => [newUserId, ...prev.filter((id) => id !== newUserId)]);
+        
+        // Fetch unread count for the newly joined user
+        if (accessToken) {
+          api.getUnreadCount(newUserId, 'admin', accessToken)
+            .then(res => {
+              setUnreadCounts(prev => ({ ...prev, [newUserId]: res?.data?.unreadCount || 0 }));
+            }).catch(() => {});
+        }
       }
     });
 
@@ -714,12 +762,8 @@ export const useChat = (): UseChatReturn => {
       });
 
       if (message.sender !== 'admin' && message.sender !== 'system') {
-        setOnlineUsers((prev) => {
-          if (!prev.includes(message.sender)) {
-            return [message.sender, ...prev];
-          }
-          return prev;
-        });
+        // Luôn đưa người gửi tin nhắn mới nhất lên đầu danh sách
+        setOnlineUsers((prev) => [message.sender, ...prev.filter((id) => id !== message.sender)]);
 
         const sender = message.sender;
         if (selectedUserIdRef.current === sender) {
@@ -855,18 +899,20 @@ export const useChat = (): UseChatReturn => {
     };
   }, [accessToken]);
 
-  const setSelectedFile = (file: File | null) => {
-    if (file && file.size > MAX_ATTACHMENT_SIZE) {
-      setError(`File vuot qua gioi han ${MAX_ATTACHMENT_SIZE_MB}MB`);
-      return;
+  const handleSetSelectedFiles = (files: File[]) => {
+    for (const file of files) {
+      if (file.size > MAX_ATTACHMENT_SIZE) {
+        setError(`File ${file.name} vượt quá giới hạn ${MAX_ATTACHMENT_SIZE_MB}MB`);
+        return;
+      }
     }
 
     setError(null);
-    setSelectedFileState(file);
+    setSelectedFiles(files);
   };
 
   const clearAttachment = () => {
-    setSelectedFileState(null);
+    setSelectedFiles([]);
   };
 
   const startSession = async () => {
@@ -905,9 +951,9 @@ export const useChat = (): UseChatReturn => {
   const sendMessage = async () => {
     const content = draftRef.current.trim();
     const receiver = selectedUserIdRef.current;
-    const file = selectedFileRef.current;
+    const files = selectedFilesRef.current;
 
-    if (!socketRef.current?.connected || isSendingRef.current || !receiver || (!content && !file)) {
+    if (!socketRef.current?.connected || isSendingRef.current || !receiver || (!content && files.length === 0)) {
       return;
     }
 
@@ -915,17 +961,25 @@ export const useChat = (): UseChatReturn => {
     isSendingRef.current = true;
     setIsSending(true);
 
-    let socketFile: SocketFilePayload | undefined;
-    let localFileURL: string | undefined;
+    const socketFiles: SocketFilePayload[] = [];
+    const localAttachments: any[] = [];
 
     try {
-      if (file) {
-        socketFile = {
-          data: await toBase64(file),
+      for (const file of files) {
+        const base64 = await toBase64(file);
+        const url = URL.createObjectURL(file);
+        socketFiles.push({
+          data: base64,
           name: file.name,
           mimeType: file.type || 'application/octet-stream',
-        };
-        localFileURL = URL.createObjectURL(file);
+        });
+        localAttachments.push({
+          url,
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          size: file.size,
+          type: isImageFile(file) ? 'image' : 'file'
+        });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể đọc file đính kèm');
@@ -936,25 +990,25 @@ export const useChat = (): UseChatReturn => {
 
     draftRef.current = '';
     setDraft('');
-    selectedFileRef.current = null;
-    setSelectedFileState(null);
+    setSelectedFiles([]);
     
     const newMessage: any = {
       tempId,
-      content: content || null,
+      content: content || null, // Đảm bảo không có logic: content || `Đã gửi ${files.length} file`
       sender: 'admin',
       receiver,
       createdAt: new Date().toISOString(),
       status: 'sending',
-      ...(file
+      attachments: localAttachments,
+      ...(localAttachments.length > 0
         ? {
-            attachmentType: isImageFile(file) ? 'image' : 'file',
-            imageURL: isImageFile(file) ? localFileURL : undefined,
-            fileURL: localFileURL,
-            fileDownloadURL: localFileURL,
-            fileName: file.name,
-            fileMimeType: file.type || 'application/octet-stream',
-            fileSize: file.size,
+            attachmentType: localAttachments[0].type,
+            imageURL: localAttachments[0].type === 'image' ? localAttachments[0].url : undefined,
+            fileURL: localAttachments[0].url,
+            fileDownloadURL: localAttachments[0].url,
+            fileName: localAttachments[0].name,
+            fileMimeType: localAttachments[0].mimeType,
+            fileSize: localAttachments[0].size,
           }
         : {}),
     };
@@ -968,28 +1022,11 @@ export const useChat = (): UseChatReturn => {
       tempId,
       content: content || null,
       receiver,
-      ...(socketFile ? { file: socketFile } : {}),
+      files: socketFiles,
     });
 
     setIsSending(false);
     isSendingRef.current = false;
-  };
-
-  const resetSession = () => {
-    setAccessToken(null);
-    setRefreshToken(null);
-    setSessionNickname('');
-    setUserId(null);
-    setOnlineUsers([]);
-    setSelectedUserId(null);
-    setAllUserMessages({});
-    setSelectedFileState(null);
-    setIsSending(false);
-    setStatus('idle');
-    setError(null);
-    socketRef.current?.disconnect();
-    socketRef.current = null;
-    clearStoredAuth();
   };
 
   const selectUser = (userId: string | null) => {
@@ -1023,7 +1060,7 @@ export const useChat = (): UseChatReturn => {
     selectedUserId,
     messages,
     draft,
-    selectedFile: selectedFileState,
+    selectedFiles,
     isSending,
     error,
     canSend,
@@ -1045,7 +1082,7 @@ export const useChat = (): UseChatReturn => {
     },
     setPassword,
     setDraft,
-    setSelectedFile,
+    setSelectedFiles: handleSetSelectedFiles,
     clearAttachment,
     setSelectedUserId: selectUser,
     setCaptchaToken,

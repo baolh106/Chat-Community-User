@@ -19,13 +19,13 @@ export const AdminDashboard = ({ chat }: AdminDashboardProps) => {
     sessionNickname,
     messages,
     draft,
-    selectedFile,
+    selectedFiles,
     isSending,
     error,
     canSend,
     videoCall,
     setDraft,
-    setSelectedFile,
+    setSelectedFiles,
     clearAttachment,
     sendMessage,
     resetSession,
@@ -142,11 +142,11 @@ export const AdminDashboard = ({ chat }: AdminDashboardProps) => {
                   userId="admin"
                   messages={messages}
                   draft={draft}
-                  selectedFile={selectedFile}
+                  selectedFiles={selectedFiles}
                   isSending={isSending}
                   error={error}
                   onDraftChange={setDraft}
-                  onFileChange={setSelectedFile}
+                  onFileChange={setSelectedFiles}
                   onClearAttachment={clearAttachment}
                   onSendMessage={sendMessage}
                   onResetSession={resetSession}

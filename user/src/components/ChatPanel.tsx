@@ -9,11 +9,11 @@ interface ChatPanelProps {
   userId: string | null;
   messages: Message[];
   draft: string;
-  selectedFile: File | null;
+  selectedFiles: File[];
   isSending: boolean;
   error: string | null;
   onDraftChange: (value: string) => void;
-  onFileChange: (file: File | null) => void;
+  onFileChange: (files: File[]) => void;
   onClearAttachment: () => void;
   onSendMessage: () => void | Promise<void>;
   onResetSession: () => void;
@@ -26,7 +26,7 @@ export const ChatPanel = ({
   userId,
   messages,
   draft,
-  selectedFile,
+  selectedFiles,
   isSending,
   error,
   onDraftChange,
@@ -47,7 +47,7 @@ export const ChatPanel = ({
     }}>
       <div className="session-info">
         <div>
-          <strong>ID:</strong> {userId ?? 'Waiting...'}
+          <strong>Nickname:</strong> {sessionNickname}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button 
@@ -82,7 +82,7 @@ export const ChatPanel = ({
 
       <MessageComposer
         draft={draft}
-        selectedFile={selectedFile}
+        selectedFiles={selectedFiles}
         isSending={isSending}
         onDraftChange={onDraftChange}
         onFileChange={onFileChange}
