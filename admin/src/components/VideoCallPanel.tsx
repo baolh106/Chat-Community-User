@@ -16,8 +16,8 @@ interface VideoCallPanelProps {
 }
 
 const getStatusText = (status: VideoCallState['status'], activeCalls: CallInfo[], incomingCalls: CallInfo[]) => {
-  if (incomingCalls.length > 0) return `${incomingCalls.length} cuộc gọi đến`;
-  if (activeCalls.length > 0) return `${activeCalls.length} cuộc gọi đang hoạt động`;
+  if (incomingCalls.length > 0) return `${incomingCalls.length} incoming call(s)`;
+  if (activeCalls.length > 0) return `${activeCalls.length} active call(s)`;
 };
 
 const VideoStreamTile = ({
@@ -156,7 +156,7 @@ export const VideoCallPanel = ({
                 onClick={() => onEndCall()}
                 style={{ background: '#ef4444' }}
               >
-                Kết thúc tất cả
+                End all
               </button>
             )}
             <button 
@@ -179,7 +179,7 @@ export const VideoCallPanel = ({
               }}
               onMouseEnter={(e) => (e.currentTarget.style.background = '#f3f4f6')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-              title="Đóng tạm"
+              title="Close"
             >
               ✕
             </button>
@@ -189,7 +189,7 @@ export const VideoCallPanel = ({
         {/* Incoming calls section */}
         {incomingCalls.length > 0 && (
           <div style={{ marginBottom: '15px', padding: '10px', background: '#fef3c7', borderRadius: '8px' }}>
-            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#333' }}>Cuộc gọi đến:</p>
+            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#333' }}>Incoming calls:</p>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               {incomingCalls.map(call => (
                 <div key={call.callId} style={{ 
@@ -202,13 +202,13 @@ export const VideoCallPanel = ({
                     style={{ padding: '4px 12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
                     onClick={() => onAcceptCall(call.callId)}
                   >
-                    Chấp nhận
+                    Accept
                   </button>
                   <button 
                     style={{ padding: '4px 12px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
                     onClick={() => onRejectCall(call.callId)}
                   >
-                    Từ chối
+                    Reject
                   </button>
                 </div>
               ))}
@@ -219,7 +219,7 @@ export const VideoCallPanel = ({
         {/* Active calls grid */}
         {activeCalls.length > 0 && (
           <>
-            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#666' }}>Cuộc gọi đang hoạt động: {activeCalls.length}</p>
+            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#666' }}>Active calls: {activeCalls.length}</p>
             <div className="video-grid" style={{ 
               display: 'grid', 
               gridTemplateColumns: activeCalls.length <= 2 ? '1fr 1fr' : activeCalls.length <= 4 ? '1fr 1fr' : '1fr 1fr 1fr',
@@ -229,7 +229,7 @@ export const VideoCallPanel = ({
               <VideoStreamTile
                 key={localStream?.id ?? 'local-video'}
                 stream={localStream}
-                label="Bạn (Local)"
+                label="You (Local)"
                 muted
               />
 

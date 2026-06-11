@@ -11,6 +11,14 @@ export type Message = {
   fileSize?: number;
   fileDriveId?: string;
   attachmentType?: 'image' | 'file';
+  attachments?: Array<{
+    url: string;
+    name: string;
+    mimeType?: string;
+    size?: number;
+    type: 'image' | 'file';
+  }>;
+  hasAttachments?: boolean;
 };
 
 export type SocketPayload = {

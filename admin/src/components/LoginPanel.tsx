@@ -1,7 +1,13 @@
+import ReCAPTCHA from 'react-google-recaptcha';
+import { useRef } from 'react';
+
+const TEST_RECAPTCHA_SITE_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
+
 interface LoginPanelProps {
   password: string;
   onPasswordChange: (value: string) => void;
   onLogin: () => void;
+  onCaptchaChange: (token: string | null) => void;
   error: string | null;
 }
 
@@ -9,23 +15,42 @@ export const LoginPanel = ({
   password,
   onPasswordChange,
   onLogin,
+  onCaptchaChange,
   error,
 }: LoginPanelProps) => {
+  const recaptchaRef = useRef<ReCAPTCHA | null>(null);
+  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || TEST_RECAPTCHA_SITE_KEY;
+
+  const handleLogin = () => {
+    if (!recaptchaRef.current?.getValue()) {
+      alert('Please complete reCAPTCHA');
+      return;
+    }
+    onLogin();
+  };
+
   return (
     <div className="login-panel">
-      <h2>Admin Login</h2>
-      <p>Nhập mật khẩu</p>
+      <label>Enter password</label>
       <input
         type="password"
-        placeholder="Nhập mật khẩu quản trị viên..."
+        placeholder="Enter admin password..."
         value={password}
         onChange={(e) => onPasswordChange(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && onLogin()}
+        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
         style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', marginBottom: '10px' }}
       />
+      <div className="recaptcha-container">
+        <ReCAPTCHA
+          ref={recaptchaRef}
+          sitekey={recaptchaSiteKey}
+          hl="en"
+          onChange={(token: string | null) => onCaptchaChange(token)}
+        />
+      </div>
       {error && <p className="error-box">{error}</p>}
-      <button onClick={onLogin} className="login-button" style={{ width: '100%' }}>
-        Đăng nhập
+      <button onClick={handleLogin} className="login-button" style={{ width: '100%' }}>
+        Log in
       </button>
     </div>
   );

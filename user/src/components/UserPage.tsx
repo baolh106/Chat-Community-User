@@ -1,61 +1,51 @@
 import { useChat } from '../hooks/useChat';
-import { ChatHeader } from './ChatHeader';
 import { LoginPanel } from './LoginPanel';
 import { ChatPanel } from './ChatPanel';
 
 export const UserPage = () => {
-  const {
-    nickname,
-    sessionNickname,
-    status,
-    userId,
-    messages,
-    draft,
-    selectedFile,
-    isSending,
-    error,
-    canSend,
-    statusText,
-    videoCall,
-    setNickname,
-    setDraft,
-    setSelectedFile,
-    clearAttachment,
-    startSession,
-    sendMessage,
-    resetSession,
-  } = useChat();
+  const chat = useChat();
+  const { sessionNickname, nickname, setNickname, startSession, setCaptchaToken, error } = chat;
 
-  // Kiểm tra xem có đang ở màn hình đăng nhập hay không
   const isLoggingIn = !sessionNickname;
 
   return (
-    <div className="app-container">
-      <ChatHeader status={statusText} statusClass={status} />
-      
+    <div className="user-page-wrapper" style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      backgroundColor: '#fdf2f8'
+    }}>
       {isLoggingIn ? (
-        <LoginPanel
-          nickname={nickname}
-          onNicknameChange={setNickname}
-          onStartSession={startSession}
-          error={error}
-        />
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+          <LoginPanel
+            nickname={nickname}
+            onNicknameChange={setNickname}
+            onStartSession={startSession}
+            onCaptchaChange={setCaptchaToken}
+            error={error}
+          />
+        </div>
       ) : (
         <ChatPanel
-          sessionNickname={sessionNickname}
-          userId={userId}
-          messages={messages}
-          draft={draft}
-          selectedFile={selectedFile}
-          isSending={isSending}
-          error={error}
-          onDraftChange={setDraft}
-          onFileChange={setSelectedFile}
-          onClearAttachment={clearAttachment}
-          onSendMessage={sendMessage}
-          onResetSession={resetSession}
-          canSend={canSend}
-          videoCall={videoCall}
+          sessionNickname={chat.sessionNickname}
+          userId={chat.userId}
+          messages={chat.messages}
+          draft={chat.draft}
+          selectedFiles={chat.selectedFiles}
+          isSending={chat.isSending}
+          error={chat.error}
+          onDraftChange={chat.setDraft}
+          onFileChange={chat.setSelectedFiles}
+          onClearAttachment={chat.clearAttachment}
+          onSendMessage={chat.sendMessage}
+          onResetSession={chat.resetSession}
+          canSend={chat.canSend}
+          videoCall={chat.videoCall}
         />
       )}
     </div>

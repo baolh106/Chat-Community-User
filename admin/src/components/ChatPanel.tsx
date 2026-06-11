@@ -6,13 +6,14 @@ import type { VideoCallState } from '../hooks/useChat';
 
 interface ChatPanelProps {
   userId: string;
+  targetUserId: string | null;
   messages: Message[];
   draft: string;
-  selectedFile: File | null;
+  selectedFiles: File[];
   isSending: boolean;
   error: string | null;
   onDraftChange: (value: string) => void;
-  onFileChange: (file: File | null) => void;
+  onFileChange: (files: File[]) => void;
   onClearAttachment: () => void;
   onSendMessage: () => void | Promise<void>;
   onResetSession: () => void;
@@ -22,9 +23,10 @@ interface ChatPanelProps {
 
 export const ChatPanel = ({
   userId,
+  targetUserId,
   messages,
   draft,
-  selectedFile,
+  selectedFiles,
   isSending,
   error,
   onDraftChange,
@@ -38,54 +40,38 @@ export const ChatPanel = ({
   return (
     <div className="chat-panel" style={{ 
       display: 'flex', 
-      flexDirection: 'column', 
-      flex: 1, 
-      height: '100%', 
-      overflow: 'hidden' 
+      flexDirection: 'column',
+      flex: 1,
+      height: '100%',
+      overflow: 'hidden'
     }}>
       <div className="session-info" style={{ 
-        padding: '10px 15px', borderBottom: '1px solid #fce7f3', 
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' 
+        padding: '12px 20px', 
+        borderBottom: '1px solid #e2e8f0', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        backgroundColor: '#fff'
       }}>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button 
-            className="small-button" 
-            onClick={() => videoCall.startCall()}
-            disabled={!videoCall.canStartCall}
-            style={{ background: '#db2777', color: '#fff', border: 'none' }}
-          >📹 Gọi Video</button>
-          {!videoCall.isVideoCallModalVisible && (videoCall.activeCalls.length > 0 || videoCall.incomingCalls.length > 0) && (
-            <button 
-              className="small-button notification-button"
-              onClick={videoCall.toggleVideoCallModal}
-              style={{ 
-                background: '#f59e0b', 
-                color: '#fff', 
-                border: 'none',
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              📞 
-              <span style={{ 
-                display: 'inline-flex', 
-                alignItems: 'center', 
-                justifyContent: 'center',
-                minWidth: '20px',
-                height: '20px',
-                background: '#dc2626',
-                borderRadius: '10px',
-                fontSize: '0.75rem',
-                fontWeight: 'bold'
-              }}>
-                {videoCall.activeCalls.length + videoCall.incomingCalls.length}
-              </span>
-            </button>
-          )}
-          <button className="small-button" onClick={onResetSession}>Kết thúc session</button>
+        <div style={{ fontWeight: '600', color: '#1e293b' }}>
+          User: <span style={{ color: '#6366f1' }}>{targetUserId}</span>
         </div>
+        <button 
+          onClick={() => videoCall.startCall()}
+          disabled={!videoCall.canStartCall}
+          title="Video Call"
+          style={{ 
+            background: 'none', 
+            color: videoCall.canStartCall ? '#6366f1' : '#cbd5e1', 
+            border: 'none',
+            padding: '4px',
+            cursor: videoCall.canStartCall ? 'pointer' : 'not-allowed',
+            fontSize: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >📞</button>
       </div>
 
       {videoCall && <VideoCallPanel
@@ -105,7 +91,7 @@ export const ChatPanel = ({
 
       <MessageComposer
         draft={draft}
-        selectedFile={selectedFile}
+        selectedFiles={selectedFiles}
         isSending={isSending}
         onDraftChange={onDraftChange}
         onFileChange={onFileChange}

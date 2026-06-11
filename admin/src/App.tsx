@@ -8,8 +8,6 @@ function App() {
         style={{ 
           width: '95vw',
           maxWidth: '1200px',
-          height: '92vh',
-          maxHeight: '900px',
           margin: 'auto'
         }}
       >
