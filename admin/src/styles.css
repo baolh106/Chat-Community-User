@@ -10,30 +10,39 @@
 }
 
 body, html, #root {
-  min-height: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
 }
 
 body {
   background: radial-gradient(circle at top, #ffe4f1 0%, #fbe7f4 37%, #fff7fb 100%);
+  overflow: hidden;
 }
 
 .page-shell {
-  min-height: 100vh;
+  height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: clamp(10px, 2.5vw, 24px);
+  overflow: hidden;
 }
 
 .chat-card {
   width: min(980px, 100%);
+  max-height: 100%;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(226, 169, 213, 0.65);
   box-shadow: 0 24px 80px rgba(206, 186, 209, 0.18);
   border-radius: 32px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-shell-card {
+  height: 100%;
 }
 
 .chat-header {
@@ -154,7 +163,11 @@ button:disabled {
 }
 
 .chat-panel {
-  display: grid;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  flex-direction: column;
   gap: 24px;
 }
 
@@ -176,9 +189,11 @@ button:disabled {
 }
 
 .messages-box {
-  height: 580px;
+  flex: 1 1 auto;
+  min-height: 0;
   box-sizing: border-box;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 20px;
   background: rgba(255, 250, 252, 0.95);
   border-radius: 26px;
@@ -297,12 +312,14 @@ button:disabled {
 }
 
 .composer {
+  flex: 0 0 auto;
   display: grid;
   gap: 16px;
 }
 
 .composer textarea {
   min-height: 120px;
+  max-height: 180px;
 }
 
 .composer-actions {
@@ -335,19 +352,272 @@ button:disabled {
   color: #a64168;
 }
 
+.admin-layout,
+.main-content,
+.chat-container,
+.chat-view,
+.user-list {
+  min-height: 0;
+}
+
+.main-content,
+.chat-view {
+  min-width: 0;
+}
+
 @media (max-width: 720px) {
+  .page-shell {
+    align-items: stretch;
+    padding: 0;
+  }
+
   .chat-header,
   .chat-card {
-    border-radius: 24px;
+    border-radius: 0;
   }
 
   .chat-header {
-    padding: 24px;
-    flex-direction: column;
+    padding: 18px 24px;
+    gap: 16px;
+  }
+
+  .chat-header h1 {
+    font-size: clamp(1.85rem, 8vw, 2.25rem);
+    line-height: 1.08;
+    overflow-wrap: anywhere;
+    white-space: normal !important;
   }
 
   .session-info {
-    flex-direction: column;
-    align-items: stretch;
+    padding: 14px 16px;
+    border-radius: 20px;
+    gap: 12px;
+  }
+
+  .messages-box {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .message-item {
+    max-width: 88%;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+
+  .composer {
+    gap: 12px;
+  }
+
+  .composer textarea {
+    min-height: 82px;
+    max-height: 112px;
+    border-radius: 16px;
+  }
+
+  .composer-actions button {
+    padding: 11px 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-layout {
+    flex-direction: column !important;
+  }
+
+  .sidebar {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 136px;
+    border-right: 0 !important;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .sidebar-header {
+    display: none !important;
+  }
+
+  .menu-list {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 10px !important;
+    scrollbar-width: none;
+  }
+
+  .menu-list::-webkit-scrollbar,
+  .user-list > div:last-child::-webkit-scrollbar {
+    display: none;
+  }
+
+  .menu-item {
+    flex: 0 0 auto;
+    margin-bottom: 0 !important;
+    padding: 9px 12px !important;
+    white-space: nowrap;
+  }
+
+  .sidebar-footer {
+    flex: 0 0 auto;
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px !important;
+  }
+
+  .sidebar-footer > div {
+    min-width: 0;
+    margin-bottom: 0 !important;
+  }
+
+  .sidebar-footer button {
+    width: auto !important;
+    min-width: 78px;
+    flex: 0 0 auto;
+  }
+
+  .main-content {
+    flex: 1 1 auto !important;
+    height: auto !important;
+  }
+
+  .main-content > header {
+    height: 52px !important;
+    min-height: 52px !important;
+    padding: 0 14px !important;
+  }
+
+  .main-content > header h3 {
+    font-size: 1rem;
+  }
+
+  .main-content > header .status-pill {
+    padding: 7px 12px;
+    white-space: nowrap;
+  }
+
+  .chat-container {
+    flex-direction: column !important;
+    min-height: 0;
+  }
+
+  .user-list {
+    width: 100% !important;
+    height: 86px !important;
+    flex: 0 0 86px !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .user-list > div:first-child {
+    display: none !important;
+  }
+
+  .user-list > div:last-child {
+    display: flex !important;
+    height: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  .user-list > div:last-child > div {
+    flex: 0 0 min(220px, 72vw);
+    border-left: 0 !important;
+    border-bottom: 3px solid transparent;
+    padding: 12px 14px !important;
+  }
+
+  .chat-view {
+    flex: 1 1 auto !important;
+    min-height: 0;
+  }
+
+  .chat-panel {
+    gap: 0;
+  }
+
+  .chat-panel > .session-info {
+    flex: 0 0 auto;
+    border-radius: 0;
+  }
+
+  .messages-box {
+    height: auto !important;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .composer {
+    padding: 12px 14px !important;
+  }
+
+  .composer textarea {
+    min-height: 84px !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .sidebar {
+    max-height: 126px;
+  }
+
+  .menu-list {
+    padding: 7px 8px !important;
+  }
+
+  .menu-item {
+    padding: 8px 10px !important;
+    font-size: 0.88rem;
+  }
+
+  .sidebar-footer {
+    padding: 7px 10px !important;
+  }
+
+  .sidebar-footer button {
+    min-width: 68px;
+    padding: 7px 10px !important;
+  }
+
+  .main-content > header {
+    height: 48px !important;
+    min-height: 48px !important;
+  }
+
+  .user-list {
+    height: 76px !important;
+    flex-basis: 76px !important;
+  }
+
+  .user-list > div:last-child > div {
+    flex-basis: min(190px, 76vw);
+    padding: 10px 12px !important;
+  }
+
+  .chat-panel > .session-info {
+    padding: 10px 12px !important;
+  }
+
+  .messages-box {
+    padding: 12px;
+  }
+
+  .message-meta {
+    flex-wrap: wrap;
+  }
+
+  .composer {
+    padding: 10px 12px !important;
+  }
+
+  .composer textarea {
+    min-height: 68px !important;
+  }
+
+  .composer-actions {
+    gap: 8px;
   }
 }
