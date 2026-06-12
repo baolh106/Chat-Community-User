@@ -76,7 +76,7 @@ const VideoStreamTile = ({
   }, [stream, label]);
 
   return (
-    <div className="video-tile" style={{ background: '#1a1a1a', borderRadius: '12px', overflow: 'hidden', aspectRatio: '4/3', position: 'relative' }}>
+    <div className="video-tile" style={{ background: '#1a1a1a', borderRadius: '12px', overflow: 'hidden', position: 'relative', height: '100%', minHeight: 0 }}>
       <video
         ref={videoRef}
         autoPlay
@@ -120,22 +120,23 @@ export const VideoCallPanel = ({
     <section className="video-call-modal" style={{ 
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       backgroundColor: 'rgba(0, 0, 0, 0.85)', zIndex: 10000,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: '20px'
+      display: 'flex', flexDirection: 'column',
+      padding: '0', overflow: 'hidden'
     }}>
       <div className="video-call-container" style={{ 
-        background: '#fff', borderRadius: '16px', padding: '20px', 
-        width: '100%', maxWidth: '800px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)' 
+        background: '#fff', borderRadius: '12px', padding: '10px', 
+        width: '100%', height: '100dvh', maxWidth: '100vw', maxHeight: '100dvh',
+        display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
       }}>
-        <div className="video-call-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+        <div className="video-call-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '5px' }}>
           <div>
           <strong style={{ color: '#db2777' }}>Video Call</strong>
           <p style={{ margin: 0, fontSize: '0.85rem', color: '#666' }}>{getStatusText(status, peerName)}</p>
         </div>
-        <div className="video-call-actions" style={{ display: 'flex', gap: '8px' }}>
+        <div className="video-call-actions" style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
           {status === 'incoming' && (
             <>
-              <button className="small-button" style={{ background: '#10b981' }} onClick={onAcceptCall}>Accept</button>
+              <button className="small-button" style={{ background: '#10b981', padding: '8px 16px' }} onClick={onAcceptCall}>Accept</button>
               <button className="small-button danger-button" onClick={onRejectCall}>Reject</button>
             </>
           )}
@@ -148,7 +149,14 @@ export const VideoCallPanel = ({
         </div>
       </div>
 
-      <div className="video-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+      <div className="video-grid" style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
+        gap: '8px',
+        flex: 1,
+        overflow: 'hidden',
+        minHeight: 0
+      }}>
         <VideoStreamTile stream={remoteStream} label="Support" />
         <VideoStreamTile stream={localStream} label="You (Local)" muted />
       </div>

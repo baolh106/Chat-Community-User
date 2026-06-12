@@ -4,7 +4,7 @@ function App() {
   return (
     <div className="page-shell">
       <section 
-        className="chat-card" 
+        className="chat-card admin-shell-card" 
         style={{ 
           width: '95vw',
           maxWidth: '1200px',

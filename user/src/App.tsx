@@ -27,7 +27,7 @@ function App() {
 
   return (
     <div className="page-shell">
-      <section className="chat-card">
+      <section className={`chat-card ${sessionNickname ? 'chat-card--active' : ''}`}>
         <ChatHeader status={statusText} statusClass={status} />
 
         {!sessionNickname ? (
