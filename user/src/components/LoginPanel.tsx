@@ -1,8 +1,6 @@
 import ReCAPTCHA from 'react-google-recaptcha';
 import { useRef } from 'react';
 
-const TEST_RECAPTCHA_SITE_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
-
 interface LoginPanelProps {
   nickname: string;
   onNicknameChange: (value: string) => void;
@@ -19,7 +17,7 @@ export const LoginPanel = ({
   error,
 }: LoginPanelProps) => {
   const recaptchaRef = useRef<ReCAPTCHA | null>(null);
-  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || TEST_RECAPTCHA_SITE_KEY;
+  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
   const handleStartSession = () => {
     if (!recaptchaRef.current?.getValue()) {
