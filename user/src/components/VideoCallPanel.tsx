@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { VideoCallState } from '../hooks/useChat';
 
 interface VideoCallPanelProps {
@@ -149,6 +149,33 @@ export const VideoCallPanel = ({
   onCancelCall,
   onEndCall,
 }: VideoCallPanelProps) => {
+  const [isMicEnabled, setIsMicEnabled] = useState(true);
+  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+
+  useEffect(() => {
+    const audioTrack = localStream?.getAudioTracks()[0];
+    const videoTrack = localStream?.getVideoTracks()[0];
+
+    setIsMicEnabled(audioTrack?.enabled ?? true);
+    setIsCameraEnabled(videoTrack?.enabled ?? true);
+  }, [localStream]);
+
+  const toggleMic = () => {
+    const nextEnabled = !isMicEnabled;
+    localStream?.getAudioTracks().forEach((track) => {
+      track.enabled = nextEnabled;
+    });
+    setIsMicEnabled(nextEnabled);
+  };
+
+  const toggleCamera = () => {
+    const nextEnabled = !isCameraEnabled;
+    localStream?.getVideoTracks().forEach((track) => {
+      track.enabled = nextEnabled;
+    });
+    setIsCameraEnabled(nextEnabled);
+  };
+
   if (status === 'idle') return null;
 
   return (
@@ -169,6 +196,30 @@ export const VideoCallPanel = ({
           <p style={{ margin: 0, fontSize: '0.85rem', color: '#666' }}>{getStatusText(status, peerName)}</p>
         </div>
         <div className="video-call-actions" style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          {localStream && (
+            <>
+              <button
+                className="small-button"
+                type="button"
+                onClick={toggleMic}
+                style={{ background: isMicEnabled ? '#10b981' : '#ef4444', padding: '8px 12px', minWidth: '42px' }}
+                title={isMicEnabled ? 'Turn off microphone' : 'Turn on microphone'}
+                aria-label={isMicEnabled ? 'Turn off microphone' : 'Turn on microphone'}
+              >
+                {isMicEnabled ? '🎙️' : '🔇'}
+              </button>
+              <button
+                className="small-button"
+                type="button"
+                onClick={toggleCamera}
+                style={{ background: isCameraEnabled ? '#10b981' : '#ef4444', padding: '8px 12px', minWidth: '42px' }}
+                title={isCameraEnabled ? 'Turn off camera' : 'Turn on camera'}
+                aria-label={isCameraEnabled ? 'Turn off camera' : 'Turn on camera'}
+              >
+                {isCameraEnabled ? '📹' : '📷'}
+              </button>
+            </>
+          )}
           {status === 'incoming' && (
             <>
               <button className="small-button" style={{ background: '#10b981', padding: '8px 16px' }} onClick={onAcceptCall}>Accept</button>
