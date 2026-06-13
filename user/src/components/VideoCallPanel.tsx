@@ -26,10 +26,12 @@ const VideoStreamTile = ({
   stream,
   label,
   muted,
+  mirrored,
 }: {
   stream: MediaStream | null;
   label: string;
   muted?: boolean;
+  mirrored?: boolean;
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -82,7 +84,7 @@ const VideoStreamTile = ({
         autoPlay
         playsInline
         muted={muted}
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: mirrored ? 'scaleX(-1)' : undefined }}
         onCanPlay={() => {
           // eslint-disable-next-line no-console
           console.log('[user] video canplay', label);
@@ -157,8 +159,8 @@ export const VideoCallPanel = ({
         overflow: 'hidden',
         minHeight: 0
       }}>
-        <VideoStreamTile stream={remoteStream} label="Support" />
-        <VideoStreamTile stream={localStream} label="You (Local)" muted />
+        <VideoStreamTile stream={remoteStream} label="Admin" />
+        <VideoStreamTile stream={localStream} label="You (Local)" muted mirrored />
       </div>
 
       {error && (

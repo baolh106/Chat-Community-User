@@ -24,12 +24,14 @@ const VideoStreamTile = ({
   stream,
   label,
   muted,
+  mirrored,
   onEnd,
   callId,
 }: {
   stream: MediaStream | null;
   label: string;
   muted?: boolean;
+  mirrored?: boolean;
   onEnd?: () => void;
   callId?: string;
 }) => {
@@ -84,7 +86,7 @@ const VideoStreamTile = ({
         autoPlay
         playsInline
         muted={muted}
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', transform: mirrored ? 'scaleX(-1)' : undefined }}
         onCanPlay={() => {
           // eslint-disable-next-line no-console
           console.log('[admin] video canplay', label, callId);
@@ -231,6 +233,7 @@ export const VideoCallPanel = ({
                 stream={localStream}
                 label="You (Local)"
                 muted
+                mirrored
               />
 
               {activeCalls.map(call => (
