@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { VideoCallState } from '../hooks/useChat';
 import type { CallInfo } from '../types';
 
@@ -36,12 +36,17 @@ const VideoStreamTile = ({
   callId?: string;
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const isMuted = Boolean(muted);
 
   useLayoutEffect(() => {
     const el = videoRef.current;
     if (!el) return;
 
     try {
+      el.muted = isMuted;
+      el.volume = isMuted ? 0 : 1;
+
       if (el.srcObject !== stream) {
         el.srcObject = null;
         el.srcObject = stream;
@@ -50,15 +55,10 @@ const VideoStreamTile = ({
       const playVideo = async () => {
         if (!stream) return;
         try {
-          // Temporarily mute to satisfy autoplay policies, then restore
-          const intendedMuted = el.muted;
-          try {
-            el.muted = true;
-            await el.play();
-          } finally {
-            el.muted = typeof muted === 'boolean' ? muted : intendedMuted;
-          }
+          await el.play();
+          setAudioBlocked(false);
         } catch (err) {
+          if (!isMuted) setAudioBlocked(true);
           // eslint-disable-next-line no-console
           console.warn('[admin] video play blocked', label, callId, err);
         }
@@ -77,7 +77,22 @@ const VideoStreamTile = ({
       // eslint-disable-next-line no-console
       console.error('[admin] Failed to attach stream', label, callId, err);
     }
-  }, [stream, label, callId]);
+  }, [stream, label, callId, isMuted]);
+
+  const enableAudio = async () => {
+    const el = videoRef.current;
+    if (!el) return;
+
+    try {
+      el.muted = false;
+      el.volume = 1;
+      await el.play();
+      setAudioBlocked(false);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[admin] enable audio failed', label, callId, err);
+    }
+  };
 
   return (
     <div className="video-tile" style={{ background: '#1a1a1a', borderRadius: '12px', overflow: 'hidden', aspectRatio: '4/3', position: 'relative' }}>
@@ -85,7 +100,7 @@ const VideoStreamTile = ({
         ref={videoRef}
         autoPlay
         playsInline
-        muted={muted}
+        muted={isMuted}
         style={{ width: '100%', height: '100%', objectFit: 'cover', transform: mirrored ? 'scaleX(-1)' : undefined }}
         onCanPlay={() => {
           // eslint-disable-next-line no-console
@@ -103,6 +118,24 @@ const VideoStreamTile = ({
       <span style={{ position: 'absolute', bottom: '10px', left: '10px', background: 'rgba(0,0,0,0.6)', color: '#fff', padding: '4px 10px', fontSize: '0.75rem', borderRadius: '6px' }}>
         {label}
       </span>
+      {audioBlocked && (
+        <button
+          type="button"
+          onClick={enableAudio}
+          style={{
+            position: 'absolute',
+            top: '10px',
+            left: '10px',
+            padding: '8px 12px',
+            borderRadius: '8px',
+            background: '#10b981',
+            color: '#fff',
+            fontSize: '0.8rem',
+          }}
+        >
+          Enable audio
+        </button>
+      )}
       {onEnd && (
         <button
           style={{
