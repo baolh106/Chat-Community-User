@@ -69,14 +69,34 @@ const normalizeMessage = (m: any): Message => {
   };
 };
 
+const getMessageTime = (message: any) => {
+  const timestamp = new Date(message.createdAt).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const isSamePendingMessage = (currentMessage: Message, nextMessage: any) => {
+  const current = currentMessage as any;
+  const sameConversation =
+    currentMessage.sender === nextMessage.sender &&
+    currentMessage.receiver === nextMessage.receiver;
+  const sameContent = (currentMessage.content || '') === (nextMessage.content || '');
+  const currentTime = getMessageTime(currentMessage);
+  const nextTime = getMessageTime(nextMessage);
+  const isRecent = currentTime > 0 && nextTime > 0 && Math.abs(currentTime - nextTime) < 15000;
+  const isPending = current.status === 'sending' || Boolean(current.tempId && !current.id);
+
+  return sameConversation && sameContent && isRecent && isPending;
+};
+
 const upsertMessage = (messages: Message[], nextMessage: any) => {
   const normalized = normalizeMessage(nextMessage);
 
   const index = messages.findIndex(m =>
     (nextMessage.id && (m as any).id === nextMessage.id) ||
     (nextMessage.tempId && (m as any).tempId === nextMessage.tempId) ||
-    (m.sender === nextMessage.sender && m.content === nextMessage.content &&
-    Math.abs(new Date(m.createdAt).getTime() - new Date(nextMessage.createdAt).getTime()) < 2000)
+    isSamePendingMessage(m, nextMessage) ||
+    (m.sender === nextMessage.sender && m.receiver === nextMessage.receiver && (m.content || '') === (nextMessage.content || '') &&
+    Math.abs(getMessageTime(m) - getMessageTime(nextMessage)) < 2000)
   );
 
   if (index >= 0) {
@@ -171,6 +191,7 @@ export const useChat = (): UseChatReturn => {
   const localStreamRef = useRef<MediaStream | null>(null);
   const pcMapRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const pendingOffersRef = useRef<Map<string, RTCSessionDescriptionInit>>(new Map());
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
   const ringAudioContextRef = useRef<AudioContext | null>(null);
   const ringOscillatorRef = useRef<OscillatorNode | null>(null);
   const ringOscillatorRef2 = useRef<OscillatorNode | null>(null);
@@ -314,6 +335,7 @@ export const useChat = (): UseChatReturn => {
       pcMapRef.current.delete(callId);
     }
     pendingOffersRef.current.delete(callId);
+    pendingIceCandidatesRef.current.delete(callId);
 
     const remainingActive = activeCallsRef.current.filter(c => c.callId !== callId);
     const remainingIncoming = incomingCallsRef.current.filter(c => c.callId !== callId);
@@ -340,6 +362,7 @@ export const useChat = (): UseChatReturn => {
     });
     pcMapRef.current.clear();
     pendingOffersRef.current.clear();
+    pendingIceCandidatesRef.current.clear();
     setActiveCalls([]);
     setIncomingCalls([]);
     setCallStatus('idle');
@@ -352,6 +375,43 @@ export const useChat = (): UseChatReturn => {
   };
 
   const isAllowedReceiver = (receiver: string) => receiver.trim().length > 0 && receiver !== 'admin';
+
+  const queueIceCandidate = (callId: string, candidate: RTCIceCandidateInit) => {
+    const pending = pendingIceCandidatesRef.current.get(callId) || [];
+    pending.push(candidate);
+    pendingIceCandidatesRef.current.set(callId, pending);
+  };
+
+  const addIceCandidateOrQueue = async (callId: string, candidate: RTCIceCandidateInit) => {
+    const pc = pcMapRef.current.get(callId);
+
+    if (!pc || !pc.remoteDescription) {
+      queueIceCandidate(callId, candidate);
+      return;
+    }
+
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (err) {
+      console.error('[admin] addIceCandidate failed', callId, err);
+    }
+  };
+
+  const flushPendingIceCandidates = async (callId: string) => {
+    const pc = pcMapRef.current.get(callId);
+    const candidates = pendingIceCandidatesRef.current.get(callId) || [];
+    if (!pc || !pc.remoteDescription || candidates.length === 0) return;
+
+    pendingIceCandidatesRef.current.delete(callId);
+
+    for (const candidate of candidates) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error('[admin] add queued ICE candidate failed', callId, err);
+      }
+    }
+  };
 
   const ensureLocalStream = async () => {
     if (localStreamRef.current) {
@@ -548,6 +608,11 @@ export const useChat = (): UseChatReturn => {
           setActiveCalls(prev => prev.map(c => c.callId === callId ? { ...c, callId: ack.callId } : c));
           pcMapRef.current.set(ack.callId, pcMapRef.current.get(callId)!);
           pcMapRef.current.delete(callId);
+          const pendingCandidates = pendingIceCandidatesRef.current.get(callId);
+          if (pendingCandidates) {
+            pendingIceCandidatesRef.current.set(ack.callId, pendingCandidates);
+            pendingIceCandidatesRef.current.delete(callId);
+          }
         }
       });
       setCallStatus(activeCalls.length > 0 ? 'ongoing' : 'ringing');
@@ -591,6 +656,7 @@ export const useChat = (): UseChatReturn => {
     try {
       setActiveCalls(prev => [...prev, { ...incomingCall, status: 'ongoing', pc }]);
       await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+      await flushPendingIceCandidates(callId);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       socketRef.current?.emit('call:accept', { callId, receiver: incomingCall.caller, answer });
@@ -868,6 +934,7 @@ export const useChat = (): UseChatReturn => {
       if (pc && payload.answer) {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+          await flushPendingIceCandidates(payload.callId);
           setActiveCalls(prev => prev.map(c => c.callId === payload.callId ? { ...c, status: 'ongoing' as const } : c));
           setCallStatus('ongoing');
         } catch (err) {
@@ -876,9 +943,8 @@ export const useChat = (): UseChatReturn => {
       }
     });
     socket.on('call:ice-candidate', async (payload: any) => {
-      const pc = pcMapRef.current.get(payload.callId);
-      if (pc && payload.candidate) {
-        await pc.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(console.error);
+      if (payload.callId && payload.candidate) {
+        await addIceCandidateOrQueue(payload.callId, payload.candidate);
       }
     });
     // Events received from the other party via backend

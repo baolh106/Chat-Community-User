@@ -75,14 +75,34 @@ const normalizeMessage = (m: any): Message => {
 };
 
 
+const getMessageTime = (message: any) => {
+  const timestamp = new Date(message.createdAt).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const isSamePendingMessage = (currentMessage: Message, nextMessage: any) => {
+  const current = currentMessage as any;
+  const sameConversation =
+    currentMessage.sender === nextMessage.sender &&
+    currentMessage.receiver === nextMessage.receiver;
+  const sameContent = (currentMessage.content || '') === (nextMessage.content || '');
+  const currentTime = getMessageTime(currentMessage);
+  const nextTime = getMessageTime(nextMessage);
+  const isRecent = currentTime > 0 && nextTime > 0 && Math.abs(currentTime - nextTime) < 15000;
+  const isPending = current.status === 'sending' || Boolean(current.tempId && !current.id);
+
+  return sameConversation && sameContent && isRecent && isPending;
+};
+
 const upsertMessage = (messages: Message[], nextMessage: any) => {
   const normalized = normalizeMessage(nextMessage);
   
   const index = messages.findIndex(m =>
     (nextMessage.id && (m as any).id === nextMessage.id) ||
     (nextMessage.tempId && (m as any).tempId === nextMessage.tempId) ||
-    (m.sender === nextMessage.sender && m.content === nextMessage.content &&
-    Math.abs(new Date(m.createdAt).getTime() - new Date(nextMessage.createdAt).getTime()) < 2000)
+    isSamePendingMessage(m, nextMessage) ||
+    (m.sender === nextMessage.sender && m.receiver === nextMessage.receiver && (m.content || '') === (nextMessage.content || '') &&
+    Math.abs(getMessageTime(m) - getMessageTime(nextMessage)) < 2000)
   );
 
   if (index >= 0) {
@@ -171,6 +191,7 @@ export const useChat = (): UseChatReturn => {
   const peerNameRef = useRef<string | null>(null);
   const callIdRef = useRef<string | null>(null);
   const pendingOfferRef = useRef<any>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const ringAudioContextRef = useRef<AudioContext | null>(null);
   const ringOscillatorRef = useRef<OscillatorNode | null>(null);
   const ringOscillatorRef2 = useRef<OscillatorNode | null>(null);
@@ -443,10 +464,42 @@ export const useChat = (): UseChatReturn => {
     setPeerName(null);
     peerNameRef.current = null;
     pendingOfferRef.current = null;
+    pendingIceCandidatesRef.current = [];
     stopRingtone();
   };
 
   const isAllowedReceiver = (receiver: string) => receiver === 'admin';
+
+  const addIceCandidateOrQueue = async (candidate: RTCIceCandidateInit) => {
+    const pc = pcRef.current;
+
+    if (!pc || !pc.remoteDescription) {
+      pendingIceCandidatesRef.current.push(candidate);
+      return;
+    }
+
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (err) {
+      console.error('[user] addIceCandidate failed', err);
+    }
+  };
+
+  const flushPendingIceCandidates = async () => {
+    const pc = pcRef.current;
+    if (!pc || !pc.remoteDescription || pendingIceCandidatesRef.current.length === 0) return;
+
+    const candidates = pendingIceCandidatesRef.current;
+    pendingIceCandidatesRef.current = [];
+
+    for (const candidate of candidates) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error('[user] add queued ICE candidate failed', err);
+      }
+    }
+  };
 
   const startCall = async (receiver: string = 'admin') => {
     if (!isAllowedReceiver(receiver)) {
@@ -529,6 +582,7 @@ export const useChat = (): UseChatReturn => {
       };
 
       await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
+      await flushPendingIceCandidates();
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -682,13 +736,14 @@ export const useChat = (): UseChatReturn => {
     socket.on('call:accepted', async (payload: any) => {
       if (pcRef.current && payload.answer) {
         await pcRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer));
+        await flushPendingIceCandidates();
         setCallStatus('ongoing');
       }
     });
 
     socket.on('call:ice-candidate', async (payload: any) => {
-      if (pcRef.current && payload.candidate) {
-        await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(console.error);
+      if (payload.candidate) {
+        await addIceCandidateOrQueue(payload.candidate);
       }
     });
 
