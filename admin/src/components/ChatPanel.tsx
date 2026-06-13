@@ -37,6 +37,17 @@ export const ChatPanel = ({
   canSend,
   videoCall,
 }: ChatPanelProps) => {
+  const hasActiveVideoCall = videoCall.activeCalls.length > 0 || videoCall.incomingCalls.length > 0;
+  const isVideoCallHidden = hasActiveVideoCall && !videoCall.isVideoCallModalVisible;
+  const handleVideoButtonClick = () => {
+    if (isVideoCallHidden) {
+      videoCall.toggleVideoCallModal();
+      return;
+    }
+
+    videoCall.startCall();
+  };
+
   return (
     <div className="chat-panel" style={{ 
       display: 'flex', 
@@ -57,15 +68,15 @@ export const ChatPanel = ({
           User: <span style={{ color: '#6366f1' }}>{targetUserId}</span>
         </div>
         <button 
-          onClick={() => videoCall.startCall()}
-          disabled={!videoCall.canStartCall}
-          title="Video Call"
+          onClick={handleVideoButtonClick}
+          disabled={!videoCall.canStartCall && !isVideoCallHidden}
+          title={isVideoCallHidden ? 'Open video call' : 'Video Call'}
           style={{ 
             background: 'none', 
-            color: videoCall.canStartCall ? '#6366f1' : '#cbd5e1', 
+            color: videoCall.canStartCall || isVideoCallHidden ? '#6366f1' : '#cbd5e1', 
             border: 'none',
             padding: '4px',
-            cursor: videoCall.canStartCall ? 'pointer' : 'not-allowed',
+            cursor: videoCall.canStartCall || isVideoCallHidden ? 'pointer' : 'not-allowed',
             fontSize: '1.5rem',
             display: 'flex',
             alignItems: 'center',
@@ -86,6 +97,18 @@ export const ChatPanel = ({
         onEndCall={videoCall.endCall}
         onToggleModal={videoCall.toggleVideoCallModal}
       />}
+
+      {isVideoCallHidden && (
+        <button
+          className="video-call-reopen-button"
+          type="button"
+          onClick={videoCall.toggleVideoCallModal}
+          title="Open video call"
+        >
+          <span>Video call active</span>
+          <strong>{videoCall.activeCalls.length || videoCall.incomingCalls.length}</strong>
+        </button>
+      )}
 
       <MessageList messages={messages} userId={userId} />
 
