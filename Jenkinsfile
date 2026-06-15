@@ -22,7 +22,6 @@ pipeline {
         // KHỐI GIAO DIỆN USER
         // ==========================================
         stage("🔧 2.1 [${env.USER_DIR}] Install dependencies") {
-            when { changeset "${env.USER_DIR}/**" }
             steps {
                 echo '=== Phát hiện thay đổi ở folder USER: Cài đặt package ==='
                 dir("${env.USER_DIR}") {
@@ -32,7 +31,6 @@ pipeline {
         }
         
         stage("🏗️ 2.2 [${env.USER_DIR}] Build Frontend") {
-            when { changeset "${env.USER_DIR}/**" }
             steps {
                 echo '=== Phát hiện thay đổi ở folder USER: Build frontend ==='
                 dir("${env.USER_DIR}") {
@@ -42,7 +40,6 @@ pipeline {
         }
         
         stage("🚀 2.3 [${env.USER_DIR}] Deploy Frontend") {
-            when { changeset "${env.USER_DIR}/**" }
             steps {
                 echo '=== Tạo folder deploy nếu chưa có ==='
                 sh "mkdir -p ${env.DEPLOY_DIR}/${env.USER_DIR}/"
@@ -56,7 +53,6 @@ pipeline {
         // ⚙️ KHỐI XỬ LÝ CHO GIAO DIỆN ADMIN
         // ==========================================
         stage("🔧 3.1 [${env.ADMIN_DIR}] Install dependencies") {
-            when { changeset "${env.ADMIN_DIR}/**" }
             steps {
                 echo '=== Phát hiện thay đổi ở folder ADMIN: Cài đặt package ==='
                 dir("${env.ADMIN_DIR}") {
@@ -66,7 +62,6 @@ pipeline {
         }
         
         stage("🏗️ 3.2 [${env.ADMIN_DIR}] Build Frontend") {
-            when { changeset "${env.ADMIN_DIR}/**" }
             steps {
                 echo '=== Phát hiện thay đổi ở folder ADMIN: Build frontend ==='
                 dir("${env.ADMIN_DIR}") {
@@ -76,7 +71,6 @@ pipeline {
         }
         
         stage("🚀 3.3 [${env.ADMIN_DIR}] Deploy Frontend") {
-            when { changeset "${env.ADMIN_DIR}/**" }
             steps {
                 echo '=== Tạo folder deploy nếu chưa có ==='
                 sh "mkdir -p ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/"
