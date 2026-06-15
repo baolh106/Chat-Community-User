@@ -1,8 +1,8 @@
 pipeline {
     agent any
-    
+
     tools {
-        nodejs: 'node-24'
+        nodejs 'node-24'
     }
 
     environment {
@@ -23,7 +23,7 @@ pipeline {
         // ==========================================
         // KHỐI GIAO DIỆN USER
         // ==========================================
-        stage("🔧 2.1 [${env.USER_DIR}] Install dependencies") {
+        stage("🔧 2.1 [User] Install dependencies") {
             steps {
                 echo '=== Phát hiện thay đổi ở folder USER: Cài đặt package ==='
                 dir("${env.USER_DIR}") {
@@ -32,7 +32,7 @@ pipeline {
             }
         }
         
-        stage("🏗️ 2.2 [${env.USER_DIR}] Build Frontend") {
+        stage("🏗️ 2.2 [User] Build Frontend") {
             steps {
                 echo '=== Phát hiện thay đổi ở folder USER: Build frontend ==='
                 dir("${env.USER_DIR}") {
@@ -41,7 +41,7 @@ pipeline {
             }
         }
         
-        stage("🚀 2.3 [${env.USER_DIR}] Deploy Frontend") {
+        stage("🚀 2.3 [User] Deploy Frontend") {
             steps {
                 echo '=== Tạo folder deploy nếu chưa có ==='
                 sh "mkdir -p ${env.DEPLOY_DIR}/${env.USER_DIR}/"
@@ -54,7 +54,7 @@ pipeline {
         // ==========================================
         // ⚙️ KHỐI XỬ LÝ CHO GIAO DIỆN ADMIN
         // ==========================================
-        stage("🔧 3.1 [${env.ADMIN_DIR}] Install dependencies") {
+        stage("🔧 3.1 [Admin] Install dependencies") {
             steps {
                 echo '=== Phát hiện thay đổi ở folder ADMIN: Cài đặt package ==='
                 dir("${env.ADMIN_DIR}") {
@@ -63,7 +63,7 @@ pipeline {
             }
         }
         
-        stage("🏗️ 3.2 [${env.ADMIN_DIR}] Build Frontend") {
+        stage("🏗️ 3.2 [Admin] Build Frontend") {
             steps {
                 echo '=== Phát hiện thay đổi ở folder ADMIN: Build frontend ==='
                 dir("${env.ADMIN_DIR}") {
@@ -72,7 +72,7 @@ pipeline {
             }
         }
         
-        stage("🚀 3.3 [${env.ADMIN_DIR}] Deploy Frontend") {
+        stage("🚀 3.3 [Admin] Deploy Frontend") {
             steps {
                 echo '=== Tạo folder deploy nếu chưa có ==='
                 sh "mkdir -p ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/"
