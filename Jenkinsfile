@@ -1,4 +1,6 @@
 pipeline {
+    agent any
+    
     tools {
         nodejs: 'node-24'
     }
@@ -34,7 +36,7 @@ pipeline {
             steps {
                 echo '=== Phát hiện thay đổi ở folder USER: Build frontend ==='
                 dir("${env.USER_DIR}") {
-                    sh "cp /root/app-chat/Chat-Community-User/user/.env ./"
+                    sh "cp /root/app-chat/Chat-Community-User/${env.USER_DIR}/.env ./"
                     sh "npm run build"                }
             }
         }
@@ -65,7 +67,7 @@ pipeline {
             steps {
                 echo '=== Phát hiện thay đổi ở folder ADMIN: Build frontend ==='
                 dir("${env.ADMIN_DIR}") {
-                    sh "cp /root/app-chat/Chat-Community-User/user/.env ./"
+                    sh "cp /root/app-chat/Chat-Community-User/${env.ADMIN_DIR}/.env ./"
                     sh "npm run build"                }
             }
         }
