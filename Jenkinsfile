@@ -48,7 +48,7 @@ pipeline {
                 sh "sudo mkdir -p ${env.DEPLOY_DIR}/${env.USER_DIR}/dist/"
                 
                 echo '=== Sử dụng Rsync đồng bộ ruột folder dist sang folder chạy thật của Nginx ==='
-                sh "rsync -av --delete ${env.USER_DIR}/dist/ ${env.DEPLOY_DIR}/${env.USER_DIR}/dist/"
+                sh "sudo rsync -av --delete ${env.USER_DIR}/dist/ ${env.DEPLOY_DIR}/${env.USER_DIR}/dist/"
 
                 echo '=== Khôi phục quyền sở hữu cho Nginx (www-data) ==='
                 sh "sudo chown -R www-data:www-data ${env.DEPLOY_DIR}/${env.USER_DIR}"
@@ -84,7 +84,7 @@ pipeline {
                 sh "sudo mkdir -p ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/dist/"
                 
                 echo '=== Sử dụng Rsync đồng bộ ruột folder dist sang folder chạy thật của Nginx ==='
-                sh "rsync -av --delete ${env.ADMIN_DIR}/dist/ ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/dist/"
+                sh "sudo rsync -av --delete ${env.ADMIN_DIR}/dist/ ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/dist/"
 
                 echo '=== Khôi phục quyền sở hữu cho Nginx (www-data) ==='
                 sh "sudo chown -R www-data:www-data ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/dist/"
