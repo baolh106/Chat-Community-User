@@ -6,7 +6,7 @@ pipeline {
     }
 
     environment {
-        DEPLOY_DIR = '/root/app-chat/Chat-Community-User'
+        DEPLOY_DIR = '/var/www/Chat-Community-User'
         USER_DIR = 'user'
         ADMIN_DIR = 'admin'
         TELEGRAM_TOKEN   = credentials('telegram-bot-token')
@@ -36,18 +36,23 @@ pipeline {
             steps {
                 echo '=== Phát hiện thay đổi ở folder USER: Build frontend ==='
                 dir("${env.USER_DIR}") {
-                    sh "cp /root/app-chat/Chat-Community-User/${env.USER_DIR}/.env ./"
-                    sh "npm run build"                }
+                    sh "cp ${env.DEPLOY_DIR}/${env.USER_DIR}/.env ./"
+                    sh "npm run build"                
+                }
             }
         }
         
         stage("🚀 2.3 [User] Deploy Frontend") {
             steps {
                 echo '=== Tạo folder deploy nếu chưa có ==='
-                sh "mkdir -p ${env.DEPLOY_DIR}/${env.USER_DIR}/"
+                sh "sudo mkdir -p ${env.DEPLOY_DIR}/${env.USER_DIR}/dist/"
                 
                 echo '=== Sử dụng Rsync đồng bộ ruột folder dist sang folder chạy thật của Nginx ==='
-                sh "rsync -av --delete ${env.USER_DIR}/dist/ ${env.DEPLOY_DIR}/${env.USER_DIR}/"
+                sh "rsync -av --delete ${env.USER_DIR}/dist/ ${env.DEPLOY_DIR}/${env.USER_DIR}/dist/"
+
+                echo '=== Khôi phục quyền sở hữu cho Nginx (www-data) ==='
+                sh "sudo chown -R www-data:www-data ${env.DEPLOY_DIR}/${env.USER_DIR}"
+                sh "sudo chmod -R 755 ${env.DEPLOY_DIR}/${env.USER_DIR}"
             }
         }
 
@@ -67,18 +72,23 @@ pipeline {
             steps {
                 echo '=== Phát hiện thay đổi ở folder ADMIN: Build frontend ==='
                 dir("${env.ADMIN_DIR}") {
-                    sh "cp /root/app-chat/Chat-Community-User/${env.ADMIN_DIR}/.env ./"
-                    sh "npm run build"                }
+                    sh "cp ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/.env ./"
+                    sh "npm run build"                
+                }
             }
         }
         
         stage("🚀 3.3 [Admin] Deploy Frontend") {
             steps {
                 echo '=== Tạo folder deploy nếu chưa có ==='
-                sh "mkdir -p ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/"
+                sh "sudo mkdir -p ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/dist/"
                 
                 echo '=== Sử dụng Rsync đồng bộ ruột folder dist sang folder chạy thật của Nginx ==='
-                sh "rsync -av --delete ${env.ADMIN_DIR}/dist/ ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/"
+                sh "rsync -av --delete ${env.ADMIN_DIR}/dist/ ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/dist/"
+
+                echo '=== Khôi phục quyền sở hữu cho Nginx (www-data) ==='
+                sh "sudo chown -R www-data:www-data ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/dist/"
+                sh "sudo chmod -R 755 ${env.DEPLOY_DIR}/${env.ADMIN_DIR}"
             }
         }
     }
