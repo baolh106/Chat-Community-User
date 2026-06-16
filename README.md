@@ -1,6 +1,6 @@
 # Chat Community User Frontend
 
-Giao diện chat cho user với tone màu hồng pastel, được xây dựng bằng React + TypeScript + Vite.
+Giao diện chat cho user với tone màu hồng pastel, được xây dựng bằng React + TypeScript + Vite
 
 ## Cấu trúc Project
 
