@@ -96,7 +96,7 @@ pipeline {
     post {
         success {
             script {
-                def message = "🎨 *JENKINS FRONTEND SUCCESS* 🚀%0A%0A" +
+                def message = "✅ *JENKINS DEPLOY SUCCESS* 🚀%0A%0A" +
                               "📦 *Dự án:* ${env.JOB_NAME}%0A" +
                               "🔢 *Build số:* #${env.BUILD_NUMBER}%0A" +
                               "🔗 *Chi tiết:* [Xem tại đây](${env.BUILD_URL})"
@@ -105,9 +105,10 @@ pipeline {
         }
         failure {
             script {
-                def message = "💥 *JENKINS FRONTEND FAILED* 🚨%0A%0A" +
+                def message = "❌ *JENKINS DEPLOY FAILED* 🚨%0A%0A" +
                               "📦 *Dự án:* ${env.JOB_NAME}%0A" +
                               "🔢 *Build số:* #${env.BUILD_NUMBER}%0A" +
+                              "💥 *Trạng thái:* Quá trình build hoặc deploy bị lỗi!%0A" +
                               "🔗 *Kiểm tra log:* [Xem tại đây](${env.BUILD_URL}console)"
                 sh "curl -s -X POST https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage -d chat_id=${env.TELEGRAM_CHAT_ID} -d text='${message}' -d parse_mode='Markdown'"
             }
