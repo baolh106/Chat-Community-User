@@ -44,27 +44,38 @@ const generateUUID = () => {
 const createCallId = () => generateUUID();
 
 const normalizeMessage = (m: any): Message => {
-  const attachments = Array.isArray(m.attachments) ? m.attachments.map((att: any) => {
-    const name = att.name || att.fileName || '';
-    const mimeType = att.mimeType || att.fileMimeType || '';
-    const isImg = mimeType.startsWith('image/') || IMAGE_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
+  const isRootUnsafe = m.isUnsafe === true || m.isUnSafe === true;
+  const rootUnsafeReason = m.unsafeReason;
+
+  const attachments = Array.isArray(m.attachments) ? m.attachments.map((att: any, index: number) => {
+    const name = att.name || att.fileName || (index === 0 ? m.fileName : '') || '';
+    const mimeType = att.mimeType || att.fileMimeType || (index === 0 ? m.fileMimeType : '') || '';
+    const isImg = (att.type === 'image' || att.attachmentType === 'image') || 
+                  mimeType.startsWith('image/') || 
+                  IMAGE_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext)) ||
+                  (index === 0 && m.attachmentType === 'image');
 
     return {
       ...att,
-      url: att.url || att.fileURL,
+      url: att.url || att.fileURL || (index === 0 ? (m.fileURL || m.imageURL) : ''),
       name,
-      type: att.type || att.attachmentType || (isImg ? 'image' : 'file')
+      mimeType,
+      type: att.type || att.attachmentType || (index === 0 ? m.attachmentType : null) || (isImg ? 'image' : 'file'),
+      isUnsafe: att.isUnsafe !== undefined ? att.isUnsafe : (index === 0 ? isRootUnsafe : false),
+      unsafeReason: att.unsafeReason || (index === 0 ? rootUnsafeReason : undefined)
     };
   }) : [];
 
   if (m.fileURL && !attachments.some((a: any) => a.url === m.fileURL)) {
-    const isImg = (m.fileMimeType?.startsWith('image/') || m.imageURL || IMAGE_EXTENSIONS.some((ext: string) => m.fileName?.toLowerCase().endsWith(ext)));
+    const isImg = (m.fileMimeType?.startsWith('image/') || m.imageURL || IMAGE_EXTENSIONS.some((ext: string) => m.fileName?.toLowerCase().endsWith(ext)) || m.attachmentType === 'image');
     attachments.push({
       url: m.fileURL,
       name: m.fileName,
       mimeType: m.fileMimeType,
       size: m.fileSize,
-      type: m.attachmentType || (isImg ? 'image' : 'file')
+      type: m.attachmentType || (isImg ? 'image' : 'file'),
+      isUnsafe: isRootUnsafe,
+      unsafeReason: rootUnsafeReason
     });
   }
 

@@ -7,6 +7,17 @@ interface MessageItemProps {
   userId: string | null;
 }
 
+// Define AttachmentItem interface
+interface AttachmentItem {
+  url: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+  type: 'image' | 'file';
+  isUnsafe?: boolean;
+  unsafeReason?: string;
+}
+
 const formatFileSize = (size?: number) => {
   if (!size) return '';
   if (size < 1024) return `${size} B`;
@@ -32,7 +43,7 @@ const getDownloadURL = (url: string) => {
   return driveFileId ? `https://drive.google.com/uc?export=download&id=${driveFileId}` : url;
 };
 
-const ImageModal = ({ url, onClose }: { url: string; onClose: () => void }) => {
+const ImageModal = ({ attachment, onClose }: { attachment: AttachmentItem; onClose: () => void }) => {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -58,6 +69,8 @@ const ImageModal = ({ url, onClose }: { url: string; onClose: () => void }) => {
 
   const stopDragging = () => setIsDragging(false);
 
+  const { url, isUnsafe, unsafeReason } = attachment; // Destructure isUnsafe and unsafeReason
+
   return (
     <div 
       style={{
@@ -65,7 +78,7 @@ const ImageModal = ({ url, onClose }: { url: string; onClose: () => void }) => {
         backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 10000,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '20px', cursor: 'zoom-out',
-        backdropFilter: 'blur(8px)',
+        // backdropFilter: 'blur(8px)', // Removed as it might conflict with image blur
         userSelect: 'none'
       }}
       onClick={onClose}
@@ -85,26 +98,77 @@ const ImageModal = ({ url, onClose }: { url: string; onClose: () => void }) => {
         onMouseLeave={stopDragging}
         onDoubleClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); }}
       >
-        <img 
-          src={getDisplayURL(url)} 
-          alt="Preview" 
-          style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '4px', pointerEvents: 'none' }} 
+        <img
+          src={getDisplayURL(url)}
+          alt="Preview"
+          style={{
+            maxWidth: '90vw',
+            maxHeight: '90vh',
+            borderRadius: '4px',
+            pointerEvents: 'none',
+            filter: isUnsafe ? 'blur(10px)' : 'none', // Apply blur if unsafe
+          }}
         />
+        {isUnsafe && (
+          <div
+            style={{
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: 'rgba(0,0,0,0.5)', color: 'white', fontSize: '1.2rem',
+              fontWeight: 'bold', textAlign: 'center', borderRadius: '4px', 
+              padding: '10px', // Added padding
+              whiteSpace: 'nowrap', // Prevent vertical wrapping
+              minWidth: '150px',   // Ensure minimum width for text
+              boxSizing: 'border-box',
+              wordBreak: 'keep-all', // Ensure text stays horizontal as much as possible
+              pointerEvents: 'none', // Allow clicks to pass through to the image container
+            }}
+          >
+            {unsafeReason || 'Inappropriate content'}
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-const AttachmentList = ({ message, onImageClick }: { message: Message; onImageClick: (url: string) => void }) => {
+const AttachmentList = ({ message, onImageClick }: { message: Message; onImageClick: (attachment: AttachmentItem) => void }) => {
   if (!message.attachments || message.attachments.length === 0) return null;
 
   return (
     <div className="message-attachments" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
       {message.attachments.map((att, index) => (
         <div key={index} className="attachment-item">
-          {att.type === 'image' ? (
-            <div onClick={() => onImageClick(att.url)} className="message-image-link" style={{ cursor: 'pointer' }}>
-              <img src={getDisplayURL(att.url)} alt={att.name} className="message-image" style={{ maxWidth: '100%', borderRadius: '8px' }} />
+          {att.type === 'image' ? ( // Cast att to AttachmentItem to ensure isUnsafe is available
+            <div
+              onClick={() => onImageClick(att as AttachmentItem)} // Pass the entire attachment object
+              className="message-image-link"
+              style={{ cursor: 'pointer', position: 'relative' }} // Added position: 'relative' for overlay
+            >
+              <img
+                src={getDisplayURL(att.url)}
+                alt={att.name}
+                className="message-image"
+                style={{ maxWidth: '100%', borderRadius: '8px', filter: att.isUnsafe ? 'blur(10px)' : 'none' }} // Apply blur to thumbnail
+              />
+              {att.isUnsafe && (
+                <div
+                  style={{
+                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '0.8rem',
+                    fontWeight: 'bold', textAlign: 'center', borderRadius: '4px', 
+                    padding: '8px', // Added padding
+                    whiteSpace: 'nowrap', // Prevent vertical wrapping
+                    minWidth: '100px', // Ensure minimum width for text
+                    boxSizing: 'border-box',
+                    wordBreak: 'keep-all',
+                    pointerEvents: 'none', // Allow clicks to pass through
+                  }}
+                >
+                  Unsafe Content
+                </div>
+              )}
             </div>
           ) : (
             <div className="message-file" style={{ background: 'rgba(0,0,0,0.03)', borderRadius: '8px', padding: '8px' }}>
@@ -135,7 +199,8 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
   const hasContent = Boolean(message.content);
   const isSending = (message as any).status === 'sending';
   const hasAttachments = Boolean(message.hasAttachments || (message.attachments && message.attachments.length > 0));
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // previewAttachment now stores AttachmentItem
+  const [previewAttachment, setPreviewAttachment] = useState<AttachmentItem | null>(null);
 
   return (
     <>
@@ -155,7 +220,8 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
       >
         {hasContent && <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>}
 
-        <AttachmentList message={message} onImageClick={setPreviewUrl} />
+        {/* Pass the setter directly, it will receive the AttachmentItem */}
+        <AttachmentList message={message} onImageClick={setPreviewAttachment} />
 
         {!hasContent && !hasAttachments && (
           <div className="message-content">
@@ -174,7 +240,8 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
           <span>{new Date(message.createdAt).toLocaleTimeString('en-US')}</span>
         </div>
       </div>
-      {previewUrl && <ImageModal url={previewUrl} onClose={() => setPreviewUrl(null)} />}
+      {/* ImageModal now receives attachment object */}
+      {previewAttachment && <ImageModal attachment={previewAttachment} onClose={() => setPreviewAttachment(null)} />}
     </>
   );
 };

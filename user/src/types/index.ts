@@ -17,6 +17,8 @@ export type Message = {
     mimeType?: string;
     size?: number;
     type: 'image' | 'file';
+    isUnsafe?: boolean; // Added for unsafe content detection
+    unsafeReason?: string; // Added for unsafe content detection
   }>;
   hasAttachments?: boolean;
 };
