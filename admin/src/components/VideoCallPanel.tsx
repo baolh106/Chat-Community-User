@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { VideoCallState } from '../hooks/useChat';
+import { debugLog } from '../utils/logger';
 import type { CallInfo } from '../types';
 
 interface VideoCallPanelProps {
@@ -59,7 +60,6 @@ const VideoStreamTile = ({
           setAudioBlocked(false);
         } catch (err) {
           if (!isMuted) setAudioBlocked(true);
-          // eslint-disable-next-line no-console
           console.warn('[admin] video play blocked', label, callId, err);
         }
       };
@@ -68,13 +68,8 @@ const VideoStreamTile = ({
         el.onloadedmetadata = playVideo;
         playVideo();
       }
-      // Log stream tracks for debugging
-      try {
-        // eslint-disable-next-line no-console
-        console.log('[admin] attach stream to video element', label, callId, 'tracks=', stream?.getTracks().map(t=>({kind:t.kind, id:t.id})), 'len=', stream?.getTracks().length);
-      } catch {}
+      debugLog('[admin] attach stream to video element', label, callId, 'tracks=', stream?.getTracks().map(t=>({kind:t.kind, id:t.id})), 'len=', stream?.getTracks().length);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('[admin] Failed to attach stream', label, callId, err);
     }
   }, [stream, label, callId, isMuted]);
@@ -89,7 +84,6 @@ const VideoStreamTile = ({
       await el.play();
       setAudioBlocked(false);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn('[admin] enable audio failed', label, callId, err);
     }
   };
@@ -103,15 +97,12 @@ const VideoStreamTile = ({
         muted={isMuted}
         style={{ width: '100%', height: '100%', objectFit: 'cover', transform: mirrored ? 'scaleX(-1)' : undefined }}
         onCanPlay={() => {
-          // eslint-disable-next-line no-console
-          console.log('[admin] video canplay', label, callId);
+          debugLog('[admin] video canplay', label, callId);
         }}
         onPlay={() => {
-          // eslint-disable-next-line no-console
-          console.log('[admin] video playing', label, callId);
+          debugLog('[admin] video playing', label, callId);
         }}
         onError={(event) => {
-          // eslint-disable-next-line no-console
           console.error('[admin] video error', label, callId, event);
         }}
       />

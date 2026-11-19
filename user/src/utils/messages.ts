@@ -95,42 +95,32 @@ export const parseMessage = (raw: unknown): Message | null => {
 const definedFields = (message: Partial<Message>): Partial<Message> =>
   Object.fromEntries(Object.entries(message).filter(([, value]) => value !== undefined));
 
-const getMessageTime = (message: Message): number => {
-  const timestamp = new Date(message.createdAt).getTime();
-  return Number.isFinite(timestamp) ? timestamp : 0;
-};
+/** Hai bản ghi là cùng một tin khi trùng id (server) hoặc trùng tempId (client). */
+const isSameMessage = (existing: Message, incoming: Message) =>
+  (incoming.id !== undefined && existing.id === incoming.id) ||
+  (incoming.tempId !== undefined && existing.tempId === incoming.tempId);
 
-const PENDING_MATCH_WINDOW_MS = 15_000;
-const DUPLICATE_MATCH_WINDOW_MS = 2_000;
-
-const isSameText = (a: Message, b: Message) =>
-  a.sender === b.sender && a.receiver === b.receiver && (a.content ?? '') === (b.content ?? '');
-
-const isSamePendingMessage = (current: Message, next: Message) => {
-  const currentTime = getMessageTime(current);
-  const nextTime = getMessageTime(next);
-  const isRecent =
-    currentTime > 0 && nextTime > 0 && Math.abs(currentTime - nextTime) < PENDING_MATCH_WINDOW_MS;
-  const isPending = current.status === 'sending' || Boolean(current.tempId && !current.id);
-  return isSameText(current, next) && isRecent && isPending;
-};
-
-/** Thêm hoặc cập nhật một tin trong danh sách. */
+/**
+ * Thêm hoặc cập nhật một tin. Chỉ khớp theo `id`/`tempId`, không đoán theo nội dung
+ * hay thời gian (gửi hai tin giống nhau liên tiếp phải ra hai tin).
+ *
+ * Nếu `message:new` (chỉ có `id`) đến trước ack (có cả `id` và `tempId`), danh sách
+ * tạm có hai bản; ack sẽ khớp cả hai và gộp lại thành một.
+ */
 export const upsertMessage = (messages: Message[], incoming: Message): Message[] => {
-  const index = messages.findIndex(
-    (m) =>
-      (incoming.id !== undefined && m.id === incoming.id) ||
-      (incoming.tempId !== undefined && m.tempId === incoming.tempId) ||
-      isSamePendingMessage(m, incoming) ||
-      (isSameText(m, incoming) &&
-        Math.abs(getMessageTime(m) - getMessageTime(incoming)) < DUPLICATE_MATCH_WINDOW_MS),
+  const matchIndexes = messages.flatMap((m, index) => (isSameMessage(m, incoming) ? [index] : []));
+  if (matchIndexes.length === 0) return [...messages, incoming];
+
+  const [firstIndex, ...duplicateIndexes] = matchIndexes;
+  const merged = [...duplicateIndexes.map((i) => messages[i]), incoming].reduce<Message>(
+    (acc, message) => ({ ...acc, ...definedFields(message) }),
+    messages[firstIndex],
   );
 
-  if (index < 0) return [...messages, incoming];
-
-  const next = [...messages];
-  next[index] = { ...next[index], ...definedFields(incoming) };
-  return next;
+  const duplicates = new Set(duplicateIndexes);
+  return messages
+    .map((m, index) => (index === firstIndex ? merged : m))
+    .filter((_, index) => !duplicates.has(index));
 };
 
 /** Cập nhật một tin theo `tempId`; không tìm thấy thì giữ nguyên danh sách. */

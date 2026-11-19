@@ -22,6 +22,7 @@ function App() {
     clearAttachment,
     startSession,
     sendMessage,
+    retryMessage,
     resetSession,
   } = useChat();
 
@@ -51,6 +52,7 @@ function App() {
             onFileChange={setSelectedFiles}
             onClearAttachment={clearAttachment}
             onSendMessage={sendMessage}
+            onRetryMessage={retryMessage}
             onResetSession={resetSession}
             canSend={canSend}
             videoCall={videoCall}

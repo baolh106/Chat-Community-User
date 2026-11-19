@@ -1,48 +1,59 @@
 import { useEffect, useRef } from 'react';
 import { MessageItem } from './MessageItem';
 import type { Message } from '../types';
+import { getMessageKey } from '../utils/messages';
+
+/** Khoảng cách tới đáy (px) vẫn coi là "đang ở cuối" để tự cuộn khi có tin mới. */
+const NEAR_BOTTOM_THRESHOLD_PX = 80;
+const SCROLL_DELAY_MS = 100;
 
 interface MessageListProps {
   messages: Message[];
   userId: string | null;
+  onRetry?: (tempId: string) => void;
 }
 
-export const MessageList = ({ messages, userId }: MessageListProps) => {
+export const MessageList = ({ messages, userId, onRetry }: MessageListProps) => {
+  const boxRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
 
+  const handleScroll = () => {
+    const box = boxRef.current;
+    if (!box) return;
+    isNearBottomRef.current =
+      box.scrollHeight - box.scrollTop - box.clientHeight < NEAR_BOTTOM_THRESHOLD_PX;
+  };
+
+  // Chỉ tự cuộn khi người dùng đang ở cuối danh sách hoặc vừa tự gửi tin,
+  // để không kéo người đang đọc tin cũ xuống đáy.
   useEffect(() => {
-    const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
+    const lastMessage = messages[messages.length - 1];
+    const isOwnMessage = lastMessage !== undefined && lastMessage.sender === userId;
+    if (!isNearBottomRef.current && !isOwnMessage) return;
 
-    // Sử dụng requestAnimationFrame để đảm bảo DOM đã render xong trước khi cuộn
-    const timeoutId = setTimeout(scrollToBottom, 100);
+    const timeoutId = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, SCROLL_DELAY_MS);
     return () => clearTimeout(timeoutId);
-  }, [messages]);
+  }, [messages, userId]);
 
   return (
-    <div className="messages-box">
+    <div className="messages-box" ref={boxRef} onScroll={handleScroll} aria-live="polite">
       {messages.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">💬</div>
           <p>Hãy bắt đầu cuộc trò chuyện cùng chúng tôi.</p>
         </div>
       ) : (
-        messages.map((message) => {
-          const isMine = message.sender === userId || message.sender === 'user';
-          return (
-            <MessageItem
-              key={
-                (message as any).id || 
-                (message as any).tempId || 
-                `${message.sender}-${message.createdAt}`
-              }
-              message={message}
-              isMine={isMine}
-              userId={userId}
-            />
-          );
-        })
+        messages.map((message) => (
+          <MessageItem
+            key={getMessageKey(message)}
+            message={message}
+            isMine={userId !== null && message.sender === userId}
+            onRetry={onRetry}
+          />
+        ))
       )}
       <div ref={messagesEndRef} />
     </div>

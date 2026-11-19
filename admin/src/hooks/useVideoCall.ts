@@ -4,8 +4,12 @@ import { getReason, getString, isRecord } from '../utils/guards';
 import { generateId } from '../utils/id';
 import { debugLog } from '../utils/logger';
 import {
-  ICE_SERVERS,
+  NO_ANSWER_TIMEOUT_MS,
+  createIceSignaler,
+  describeMediaError,
   describeTracks,
+  getIceServers,
+  getLocalMedia,
   parseIceCandidate,
   parseSessionDescription,
 } from '../utils/webrtc';
@@ -37,7 +41,6 @@ const ADMIN_ID = 'admin';
 type Options = {
   socket: AppSocket | null;
   isConnected: boolean;
-  onError: (message: string | null) => void;
 };
 
 const stopSenderTracks = (pc: RTCPeerConnection) => {
@@ -49,18 +52,22 @@ const clonePeerStream = (stream: MediaStream) =>
   new MediaStream(stream.getTracks().map((track) => track.clone()));
 
 /** Admin có thể nhận và giữ nhiều cuộc gọi video cùng lúc, mỗi cuộc một RTCPeerConnection. */
-export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
+export const useVideoCall = ({ socket, isConnected }: Options) => {
   const [status, setStatus] = useState<CallStatus>('idle');
   const [activeCalls, setActiveCalls] = useState<CallInfo[]>([]);
   const [incomingCalls, setIncomingCalls] = useState<CallInfo[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(true);
+  // Lỗi cuộc gọi tách khỏi lỗi chat để không ghi đè nhau.
+  const [error, setError] = useState<string | null>(null);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef(new Map<string, RTCPeerConnection>());
   const pendingIceCandidatesRef = useRef(new Map<string, RTCIceCandidateInit[]>());
   const activeCallsRef = useRef<CallInfo[]>([]);
   const incomingCallsRef = useRef<CallInfo[]>([]);
+  // callId → timer tự huỷ cuộc gọi đi khi không ai nghe máy.
+  const noAnswerTimersRef = useRef(new Map<string, number>());
   const ringtone = useRingtone();
 
   useEffect(() => {
@@ -77,7 +84,13 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
     setLocalStream(null);
   };
 
+  const clearNoAnswerTimer = (callId: string) => {
+    window.clearTimeout(noAnswerTimersRef.current.get(callId));
+    noAnswerTimersRef.current.delete(callId);
+  };
+
   const cleanupCall = useEventCallback((callId: string) => {
+    clearNoAnswerTimer(callId);
     const pc = peerConnectionsRef.current.get(callId);
     if (pc) {
       stopSenderTracks(pc);
@@ -99,6 +112,8 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
   });
 
   const cleanupAllCalls = useEventCallback(() => {
+    noAnswerTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    noAnswerTimersRef.current.clear();
     peerConnectionsRef.current.forEach((pc) => {
       stopSenderTracks(pc);
       pc.close();
@@ -122,13 +137,13 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
   const ensureLocalStream = useEventCallback(async () => {
     if (localStreamRef.current) return localStreamRef.current;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await getLocalMedia();
       debugLog('[call] acquired local stream', describeTracks(stream));
       localStreamRef.current = stream;
       setLocalStream(stream);
       return stream;
-    } catch {
-      onError('Lỗi truy cập Media');
+    } catch (err) {
+      setError(describeMediaError(err));
       return null;
     }
   });
@@ -173,16 +188,27 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
     }
   };
 
+  /** Gửi `call:end` cho một cuộc gọi đang diễn ra rồi dọn nó. */
+  const endActiveCall = useEventCallback((callId: string) => {
+    const activeCall = activeCallsRef.current.find((c) => c.callId === callId);
+    if (activeCall) socket?.emit('call:end', { callId, receiver: activeCall.caller });
+    cleanupCall(callId);
+  });
+
   /**
    * Tạo PeerConnection cho một cuộc gọi. `getCallId` đọc id hiện tại vì server
-   * có thể cấp lại callId trong ack của `call:invite`.
+   * có thể cấp lại callId trong ack của `call:invite`. ICE candidate local được giữ
+   * lại tới khi gọi `signaler.open()` (sau khi đã gửi offer/answer).
    */
   const createPeerConnection = (
     getCallId: () => string,
     receiver: string,
     stream: MediaStream,
   ) => {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+    const signaler = createIceSignaler((candidate) => {
+      socket?.emit('call:ice-candidate', { callId: getCallId(), receiver, candidate });
+    });
     const peerStream = clonePeerStream(stream);
     peerStream.getTracks().forEach((track) => pc.addTrack(track, peerStream));
     pc.ontrack = (event) => {
@@ -194,14 +220,17 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
       );
     };
     pc.onicecandidate = (event) => {
-      if (!event.candidate) return;
-      socket?.emit('call:ice-candidate', {
-        callId: getCallId(),
-        receiver,
-        candidate: event.candidate.toJSON(),
-      });
+      if (event.candidate) signaler.push(event.candidate.toJSON());
     };
-    return pc;
+    pc.onconnectionstatechange = () => {
+      const callId = getCallId();
+      debugLog('[call] connectionState', callId, pc.connectionState);
+      if (pc.connectionState === 'failed' && peerConnectionsRef.current.get(callId) === pc) {
+        setError('Kết nối cuộc gọi thất bại');
+        endActiveCall(callId);
+      }
+    };
+    return { pc, signaler };
   };
 
   /** Server đổi callId trong ack: chuyển PeerConnection, ICE đang chờ và state sang id mới. */
@@ -216,19 +245,27 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
       pendingIceCandidatesRef.current.set(toId, pending);
       pendingIceCandidatesRef.current.delete(fromId);
     }
+    const timer = noAnswerTimersRef.current.get(fromId);
+    if (timer !== undefined) {
+      noAnswerTimersRef.current.set(toId, timer);
+      noAnswerTimersRef.current.delete(fromId);
+    }
     setActiveCalls((prev) => prev.map((c) => (c.callId === fromId ? { ...c, callId: toId } : c)));
   };
 
   const startCall = useEventCallback(async (receiver: string) => {
     if (!receiver.trim() || receiver === ADMIN_ID) {
-      onError('Admin chỉ được gọi user');
+      setError('Admin chỉ được gọi user');
       return;
     }
+    // Chặn gọi trùng tới một user đang có cuộc gọi.
+    if (activeCallsRef.current.some((c) => c.caller === receiver)) return;
+    setError(null);
     const stream = await ensureLocalStream();
     if (!stream) return;
 
     let callId = generateId();
-    const pc = createPeerConnection(() => callId, receiver, stream);
+    const { pc, signaler } = createPeerConnection(() => callId, receiver, stream);
     peerConnectionsRef.current.set(callId, pc);
 
     try {
@@ -247,9 +284,22 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
           callId = ackCallId;
         }
       });
+      signaler.open();
       setStatus(hadActiveCall ? 'ongoing' : 'ringing');
-    } catch {
-      onError('Lỗi tạo offer');
+
+      noAnswerTimersRef.current.set(
+        callId,
+        window.setTimeout(() => {
+          const call = activeCallsRef.current.find((c) => c.callId === callId);
+          if (call?.status !== 'outgoing') return;
+          setError(`${receiver} không nghe máy`);
+          socket?.emit('call:cancel', { callId, receiver });
+          cleanupCall(callId);
+        }, NO_ANSWER_TIMEOUT_MS),
+      );
+    } catch (err) {
+      console.error('[call] start failed', err);
+      setError('Lỗi tạo offer');
       cleanupCall(callId);
     }
   });
@@ -257,10 +307,12 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
   const acceptCall = useEventCallback(async (callId: string) => {
     const incomingCall = incomingCalls.find((c) => c.callId === callId);
     if (!incomingCall?.offer) return;
+    if (peerConnectionsRef.current.has(callId)) return;
+    setError(null);
     const stream = await ensureLocalStream();
     if (!stream) return;
 
-    const pc = createPeerConnection(() => callId, incomingCall.caller, stream);
+    const { pc, signaler } = createPeerConnection(() => callId, incomingCall.caller, stream);
     peerConnectionsRef.current.set(callId, pc);
 
     try {
@@ -270,14 +322,17 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       socket?.emit('call:accept', { callId, receiver: incomingCall.caller, answer });
+      signaler.open();
       setIncomingCalls((prev) => {
         const next = prev.filter((c) => c.callId !== callId);
         if (next.length === 0) ringtone.stop();
         return next;
       });
       setStatus('ongoing');
-    } catch {
-      onError('Lỗi khi chấp nhận gọi');
+    } catch (err) {
+      console.error('[call] accept failed', err);
+      setError('Lỗi khi chấp nhận gọi');
+      socket?.emit('call:reject', { callId, receiver: incomingCall.caller });
       cleanupCall(callId);
     }
   });
@@ -333,6 +388,7 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
     const answer = parseSessionDescription(payload.answer);
     const pc = callId ? peerConnectionsRef.current.get(callId) : undefined;
     if (!callId || !pc || !answer) return;
+    clearNoAnswerTimer(callId);
     void (async () => {
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(answer));
@@ -343,6 +399,8 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
         setStatus('ongoing');
       } catch (err) {
         console.error('[call] setRemoteDescription failed', err);
+        setError('Kết nối cuộc gọi thất bại');
+        endActiveCall(callId);
       }
     })();
   });
@@ -360,7 +418,7 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
   };
 
   useSocketEvent(socket, 'call:error', (payload) => {
-    onError(getReason(payload) ?? 'Call error');
+    setError(getReason(payload) ?? 'Call error');
     handleCallFinished(payload);
   });
   useSocketEvent(socket, 'call:rejected', handleCallFinished);
@@ -372,6 +430,7 @@ export const useVideoCall = ({ socket, isConnected, onError }: Options) => {
     activeCalls,
     incomingCalls,
     localStream,
+    error,
     isVideoCallModalVisible: isModalVisible,
     startCall,
     acceptCall,

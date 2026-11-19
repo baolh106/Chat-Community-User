@@ -44,8 +44,10 @@ interface UseChatReturn {
   setDraft: (value: string) => void;
   setSelectedFiles: (files: File[]) => void;
   clearAttachment: () => void;
-  startSession: () => Promise<void>;
+  /** Trả `true` khi đăng nhập thành công; `false` để form reset reCAPTCHA (token chỉ dùng một lần). */
+  startSession: () => Promise<boolean>;
   sendMessage: () => Promise<void>;
+  retryMessage: (tempId: string) => void;
   resetSession: () => void;
 }
 
@@ -90,7 +92,7 @@ export const useChat = (): UseChatReturn => {
     onError: setError,
   });
 
-  const call = useVideoCall({ socket, isConnected, onError: setError });
+  const call = useVideoCall({ socket, isConnected });
 
   const resetSession = () => {
     auth.end();
@@ -98,19 +100,19 @@ export const useChat = (): UseChatReturn => {
     setLoginStatus('idle');
   };
 
-  const startSession = async () => {
+  const startSession = async (): Promise<boolean> => {
     const trimmed = nickname.trim();
     if (!trimmed) {
       setError('Vui lòng nhập nickname');
-      return;
+      return false;
     }
     if (trimmed.length < NICKNAME_MIN_LENGTH || trimmed.length > NICKNAME_MAX_LENGTH) {
       setError(`Nickname phải có từ ${NICKNAME_MIN_LENGTH} đến ${NICKNAME_MAX_LENGTH} ký tự`);
-      return;
+      return false;
     }
     if (!captchaToken) {
       setError('Vui lòng xác thực reCAPTCHA');
-      return;
+      return false;
     }
 
     // Bỏ phiên cũ (nếu có) trước khi bắt đầu phiên mới.
@@ -123,9 +125,11 @@ export const useChat = (): UseChatReturn => {
       if (!tokens.refreshToken) throw new Error('Không nhận được accessToken hoặc refreshToken');
       auth.establish({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }, trimmed);
       setLoginStatus('idle');
+      return true;
     } catch (err) {
       setError(getErrorMessage(err, 'Lỗi không xác định'));
       setLoginStatus('error');
+      return false;
     }
   };
 
@@ -149,7 +153,6 @@ export const useChat = (): UseChatReturn => {
     statusText: STATUS_TEXT[status],
     videoCall: {
       ...call,
-      error,
       canStartCall: isConnected && Boolean(conversation.userId),
     },
     setNickname,
@@ -159,6 +162,7 @@ export const useChat = (): UseChatReturn => {
     clearAttachment: sender.clearAttachment,
     startSession,
     sendMessage: () => sender.sendMessage('admin'),
+    retryMessage: sender.retryMessage,
     resetSession,
   };
 };

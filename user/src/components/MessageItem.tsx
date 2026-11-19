@@ -1,28 +1,15 @@
-import { useState } from 'react';
-import type { Message } from '../types';
+import { memo, useState } from 'react';
+import type { Attachment, Message } from '../types';
+import { formatFileSize, getDisplayURL, getDownloadURL } from '../utils/files';
+import { safeUrl } from '../utils/url';
 
 interface MessageItemProps {
   message: Message;
   isMine: boolean;
-  userId: string | null;
+  onRetry?: (tempId: string) => void;
 }
 
-interface AttachmentItem {
-  url: string;
-  name: string;
-  mimeType?: string;
-  size?: number;
-  type: 'image' | 'file';
-  isUnsafe?: boolean; // Added for unsafe content detection
-  unsafeReason?: string; // Added
-}
-
-const formatFileSize = (size?: number) => { // Moved outside to be a pure function
-  if (!size) return '';
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-};
+const MINE_BACKGROUND = '#fdf2f8';
 
 const getSenderLabel = (message: Message, isMine: boolean) => {
   if (isMine) return 'You';
@@ -30,19 +17,7 @@ const getSenderLabel = (message: Message, isMine: boolean) => {
   return 'Admin';
 };
 
-const getDisplayURL = (url: string) => {
-  if (!url || url.startsWith('blob:')) return url;
-  const driveFileId = url.match(/\/file\/d\/([^/]+)/)?.[1];
-  return driveFileId ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w1000` : url;
-};
-
-const getDownloadURL = (url: string) => {
-  if (!url) return url;
-  const driveFileId = url.match(/\/file\/d\/([^/]+)/)?.[1] || url.match(/[?&]id=([^&]+)/)?.[1];
-  return driveFileId ? `https://drive.google.com/uc?export=download&id=${driveFileId}` : url;
-};
-
-const ImageModal = ({ attachment, onClose }: { attachment: AttachmentItem; onClose: () => void }) => {
+const ImageModal = ({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) => {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -50,7 +25,7 @@ const ImageModal = ({ attachment, onClose }: { attachment: AttachmentItem; onClo
 
   const handleWheel = (e: React.WheelEvent) => {
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setScale(s => Math.min(Math.max(s + delta, 0.5), 10));
+    setScale((s) => Math.min(Math.max(s + delta, 0.5), 10));
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -67,11 +42,11 @@ const ImageModal = ({ attachment, onClose }: { attachment: AttachmentItem; onClo
   };
 
   const stopDragging = () => setIsDragging(false);
-
-  const { url, isUnsafe } = attachment;
+  const src = safeUrl(getDisplayURL(attachment.url));
+  const { isUnsafe } = attachment;
 
   return (
-    <div 
+    <div
       style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
         backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 10000,
@@ -82,9 +57,9 @@ const ImageModal = ({ attachment, onClose }: { attachment: AttachmentItem; onClo
       onClick={onClose}
       onWheel={handleWheel}
     >
-      <div 
-        style={{ 
-          position: 'relative', 
+      <div
+        style={{
+          position: 'relative',
           cursor: scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default',
           transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
           transition: isDragging ? 'none' : 'transform 0.15s ease-out'
@@ -96,30 +71,32 @@ const ImageModal = ({ attachment, onClose }: { attachment: AttachmentItem; onClo
         onMouseLeave={stopDragging}
         onDoubleClick={() => { setScale(1); setPosition({ x: 0, y: 0 }); }}
       >
-        <img
-          src={getDisplayURL(url)}
-          alt="Preview"
-          style={{
-            maxWidth: '90vw',
-            maxHeight: '90vh',
-            borderRadius: '4px',
-            pointerEvents: 'none',
-            filter: isUnsafe ? 'blur(10px)' : 'none', // Apply blur if unsafe
-          }}
-        />
+        {src && (
+          <img
+            src={src}
+            alt={attachment.name || 'Preview'}
+            style={{
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              borderRadius: '4px',
+              pointerEvents: 'none',
+              filter: isUnsafe ? 'blur(10px)' : 'none',
+            }}
+          />
+        )}
         {isUnsafe && (
           <div
             style={{
               position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               backgroundColor: 'rgba(0,0,0,0.5)', color: 'white', fontSize: '1.2rem',
-              fontWeight: 'bold', textAlign: 'center', borderRadius: '4px', 
+              fontWeight: 'bold', textAlign: 'center', borderRadius: '4px',
               padding: '10px',
-              whiteSpace: 'nowrap', // Ngăn chặn việc xuống dòng dọc
-              minWidth: '150px',   // Đảm bảo đủ không gian hiển thị
+              whiteSpace: 'nowrap',
+              minWidth: '150px',
               boxSizing: 'border-box',
-              wordBreak: 'keep-all', // Ensure text stays horizontal as much as possible
-              pointerEvents: 'none', // Allow clicks to pass through to the image container
+              wordBreak: 'keep-all',
+              pointerEvents: 'none',
             }}
           >
             {attachment.unsafeReason || 'Inappropriate content'}
@@ -130,75 +107,92 @@ const ImageModal = ({ attachment, onClose }: { attachment: AttachmentItem; onClo
   );
 };
 
-const AttachmentList = ({ message, onImageClick }: { message: Message; onImageClick: (attachment: AttachmentItem) => void }) => {
-  if (!message.attachments || message.attachments.length === 0) return null;
+const ImageAttachment = ({ attachment, onOpen }: { attachment: Attachment; onOpen: () => void }) => {
+  const src = safeUrl(getDisplayURL(attachment.url));
+  if (!src) return <div className="file-name">{attachment.name}</div>;
 
   return (
-    <div className="message-attachments" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-      {message.attachments.map((att, index) => (
-        <div key={index} className="attachment-item">
-          {att.type === 'image' ? ( // Cast att to AttachmentItem to ensure isUnsafe is available
-            <div
-              onClick={() => onImageClick(att as AttachmentItem)} // Pass the entire attachment object
-              className="message-image-link"
-              style={{ cursor: 'pointer', position: 'relative' }} // Added position: 'relative' for overlay
-            >
-              <img
-                src={getDisplayURL(att.url)}
-                alt={att.name}
-                className="message-image"
-                style={{ filter: att.isUnsafe ? 'blur(10px)' : 'none' }} // Apply blur to thumbnail
-              />
-              {att.isUnsafe && (
-                <div
-                  style={{
-                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '0.8rem',
-                    fontWeight: 'bold', textAlign: 'center', borderRadius: '4px', 
-                    padding: '8px',
-                    whiteSpace: 'nowrap', // Chống text bị dọc ở thumbnail
-                    minWidth: '100px',
-                    boxSizing: 'border-box',
-                    wordBreak: 'keep-all',
-                    pointerEvents: 'none', // Allow clicks to pass through
-                  }}
-                >
-                  Unsafe Content
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="message-file" style={{ background: 'rgba(0,0,0,0.03)', borderRadius: '8px', padding: '8px' }}>
-              <div className="file-icon">FILE</div>
-              <div className="file-details">
-                <a href={getDownloadURL(att.url)} download={att.name} target="_blank" rel="noreferrer" className="file-name">
-                  {att.name}
-                </a>
-                <div className="file-meta">
-                  {formatFileSize(att.size)}
-                </div>
-              </div>
-            </div>
-          )}
+    <div
+      onClick={onOpen}
+      className="message-image-link"
+      style={{ cursor: 'pointer', position: 'relative' }}
+    >
+      <img
+        src={src}
+        alt={attachment.name}
+        className="message-image"
+        style={{ filter: attachment.isUnsafe ? 'blur(10px)' : 'none' }}
+      />
+      {attachment.isUnsafe && (
+        <div
+          style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'rgba(0,0,0,0.3)', color: 'white', fontSize: '0.8rem',
+            fontWeight: 'bold', textAlign: 'center', borderRadius: '4px',
+            padding: '8px',
+            whiteSpace: 'nowrap',
+            minWidth: '100px',
+            boxSizing: 'border-box',
+            wordBreak: 'keep-all',
+            pointerEvents: 'none',
+          }}
+        >
+          Unsafe Content
         </div>
-      ))}
+      )}
     </div>
   );
 };
 
-export const MessageItem = ({ message, isMine }: MessageItemProps) => {
+const FileAttachment = ({ attachment }: { attachment: Attachment }) => {
+  const href = safeUrl(getDownloadURL(attachment.url));
+  return (
+    <div className="message-file" style={{ background: 'rgba(0,0,0,0.03)', borderRadius: '8px', padding: '8px' }}>
+      <div className="file-icon">FILE</div>
+      <div className="file-details">
+        {href ? (
+          <a href={href} download={attachment.name} target="_blank" rel="noopener noreferrer" className="file-name">
+            {attachment.name}
+          </a>
+        ) : (
+          <span className="file-name">{attachment.name}</span>
+        )}
+        <div className="file-meta">{formatFileSize(attachment.size)}</div>
+      </div>
+    </div>
+  );
+};
+
+const AttachmentList = ({ attachments, onImageClick }: { attachments: Attachment[]; onImageClick: (attachment: Attachment) => void }) => (
+  <div className="message-attachments" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+    {attachments.map((attachment, index) => (
+      <div key={`${index}-${attachment.url}`} className="attachment-item">
+        {attachment.type === 'image' ? (
+          <ImageAttachment attachment={attachment} onOpen={() => onImageClick(attachment)} />
+        ) : (
+          <FileAttachment attachment={attachment} />
+        )}
+      </div>
+    ))}
+  </div>
+);
+
+export const MessageItem = memo(function MessageItem({ message, isMine, onRetry }: MessageItemProps) {
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const hasContent = Boolean(message.content);
-  const isSending = (message as any).status === 'sending';
-  const hasAttachments = Boolean(message.hasAttachments || (message.attachments && message.attachments.length > 0));
-  const [previewAttachment, setPreviewAttachment] = useState<AttachmentItem | null>(null); // Changed state type to store attachment object
+  const attachments = message.attachments ?? [];
+  const hasAttachments = Boolean(message.hasAttachments || attachments.length > 0);
+  const isSending = message.status === 'sending';
+  const isFailed = message.status === 'failed';
+  const { tempId } = message;
 
   return (
     <>
       <div
         className={`message-item ${isMine ? 'mine' : 'other'}`}
-        style={{ 
-          background: isMine ? '#fdf2f8' : '#ffffff',
+        style={{
+          background: isMine ? MINE_BACKGROUND : '#ffffff',
           color: '#1e293b',
           border: 'none',
           boxShadow: '0 4px 15px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02)',
@@ -206,17 +200,18 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
           width: 'fit-content',
           maxWidth: '85%',
           wordBreak: 'break-word',
-          opacity: (message as any).status === 'sending' ? 0.6 : 1
+          opacity: isSending ? 0.6 : 1
         }}
       >
         {hasContent && <div className="message-content" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>}
-        
-        {/* Pass the setter directly, it will receive the AttachmentItem */}
-        <AttachmentList message={message} onImageClick={setPreviewAttachment} />
+
+        {attachments.length > 0 && (
+          <AttachmentList attachments={attachments} onImageClick={setPreviewAttachment} />
+        )}
 
         {!hasContent && !hasAttachments && (
           <div className="message-content">
-            {isSending || message.uploadingFileName ? (
+            {isSending ? (
               <span style={{ fontStyle: 'italic', opacity: 0.7 }}>
                 {message.uploadingFileName ? `Processing ${message.uploadingFileName}...` : 'Sending...'}
               </span>
@@ -229,11 +224,20 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
         <div className="message-meta">
           <span>{getSenderLabel(message, isMine)}</span>
           <span>{new Date(message.createdAt).toLocaleTimeString('en-US')}</span>
-          {isMine && (message as any).status === 'sending' && <span> • Sending...</span>}
-          {isMine && (message as any).status === 'failed' && <span style={{ color: '#ef4444' }}> • Failed</span>}
+          {isMine && isSending && <span> • Sending...</span>}
+          {isMine && isFailed && (
+            <span className="message-failed">
+              {' • Failed'}
+              {onRetry && tempId && (
+                <button type="button" className="message-retry" onClick={() => onRetry(tempId)}>
+                  Gửi lại
+                </button>
+              )}
+            </span>
+          )}
         </div>
       </div>
       {previewAttachment && <ImageModal attachment={previewAttachment} onClose={() => setPreviewAttachment(null)} />}
     </>
   );
-};
+});

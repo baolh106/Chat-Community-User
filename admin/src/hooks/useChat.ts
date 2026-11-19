@@ -48,8 +48,10 @@ interface UseChatReturn {
   setSelectedFiles: (files: File[]) => void;
   clearAttachment: () => void;
   setSelectedUserId: (userId: string | null) => void;
-  startSession: () => Promise<void>;
+  /** Trả `true` khi đăng nhập thành công; `false` để form reset reCAPTCHA (token chỉ dùng một lần). */
+  startSession: () => Promise<boolean>;
   sendMessage: () => Promise<void>;
+  retryMessage: (tempId: string) => void;
   resetSession: () => void;
 }
 
@@ -95,7 +97,7 @@ export const useChat = (): UseChatReturn => {
     onError: setError,
   });
 
-  const call = useVideoCall({ socket, isConnected, onError: setError });
+  const call = useVideoCall({ socket, isConnected });
 
   const resetSession = () => {
     auth.end();
@@ -103,15 +105,15 @@ export const useChat = (): UseChatReturn => {
     setLoginStatus('idle');
   };
 
-  const startSession = async () => {
+  const startSession = async (): Promise<boolean> => {
     const trimmed = password.trim();
     if (!trimmed) {
       setError('Vui lòng nhập mật khẩu admin');
-      return;
+      return false;
     }
     if (!captchaToken) {
       setError('Vui lòng xác thực reCAPTCHA');
-      return;
+      return false;
     }
 
     setError(null);
@@ -125,9 +127,11 @@ export const useChat = (): UseChatReturn => {
         ADMIN_NICKNAME,
       );
       setLoginStatus('idle');
+      return true;
     } catch (err) {
       setError(getErrorMessage(err, 'Lỗi không xác định'));
       setLoginStatus('error');
+      return false;
     }
   };
 
@@ -152,7 +156,6 @@ export const useChat = (): UseChatReturn => {
     statusText: STATUS_TEXT[status],
     videoCall: {
       ...call,
-      error,
       canStartCall: isConnected && Boolean(selectedUserId) && selectedUserId !== ADMIN_ID,
       startCall: (receiver?: string) => call.startCall(receiver ?? selectedUserId ?? ''),
     },
@@ -164,6 +167,7 @@ export const useChat = (): UseChatReturn => {
     setSelectedUserId: conversations.selectUser,
     startSession,
     sendMessage: () => sender.sendMessage(selectedUserId),
+    retryMessage: sender.retryMessage,
     resetSession,
   };
 };

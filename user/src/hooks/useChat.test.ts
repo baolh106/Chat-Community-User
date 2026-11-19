@@ -106,6 +106,54 @@ describe('useChat (user)', () => {
     );
   });
 
+  it('gửi hai tin giống nhau liên tiếp: cả hai đều hiển thị (review #4)', async () => {
+    const { result } = await renderJoined();
+
+    for (let i = 0; i < 2; i++) {
+      act(() => result.current.setDraft('ok'));
+      await act(() => result.current.sendMessage());
+    }
+
+    const contents = result.current.messages.filter((m) => m.sender === 'u-1').map((m) => m.content);
+    expect(contents).toEqual(['ok', 'ok']);
+  });
+
+  it('không có ack: tin chuyển failed, gửi lại dùng cùng tempId (review #5)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { result } = await renderJoined();
+      act(() => result.current.setDraft('hello'));
+      await act(() => result.current.sendMessage());
+      const [sent] = latestSocket().emittedEvents('message:send');
+      const { tempId } = sent.args[0] as { tempId: string };
+
+      act(() => vi.advanceTimersByTime(15_000));
+      expect(result.current.messages.at(-1)).toEqual(expect.objectContaining({ tempId, status: 'failed' }));
+      expect(result.current.error).toBe('Không nhận được phản hồi từ server');
+
+      act(() => result.current.retryMessage(tempId));
+      const resent = latestSocket().emittedEvents('message:send');
+      expect(resent).toHaveLength(2);
+      expect(resent[1].args[0]).toEqual(sent.args[0]);
+      expect(result.current.messages.at(-1)?.status).toBe('sending');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('message:error có tempId đánh dấu đúng tin failed', async () => {
+    const { result } = await renderJoined();
+    act(() => result.current.setDraft('hello'));
+    await act(() => result.current.sendMessage());
+    const [sent] = latestSocket().emittedEvents('message:send');
+    const { tempId } = sent.args[0] as { tempId: string };
+
+    act(() => latestSocket().serverEmit('message:error', { tempId, reason: 'unauthorized' }));
+
+    expect(result.current.messages.at(-1)?.status).toBe('failed');
+    expect(result.current.error).toBe('Phiên đăng nhập không hợp lệ');
+  });
+
   it('message:new từ admin được thêm vào danh sách', async () => {
     const { result } = await renderJoined();
     act(() =>

@@ -117,6 +117,37 @@ describe('upsertMessage', () => {
     expect(result[0].content).toBe('new');
   });
 
+  it('giữ cả hai tin khi gửi hai tin trùng nội dung liên tiếp (review #4)', () => {
+    const first = makeMessage({ tempId: 't1', status: 'sending' });
+    const second = makeMessage({ tempId: 't2', status: 'sending' });
+    const list = upsertMessage([first], second);
+    expect(list.map((m) => m.tempId)).toEqual(['t1', 't2']);
+  });
+
+  it('không gộp tin server trùng nội dung với tin đang chờ nếu khác id/tempId', () => {
+    const pending = makeMessage({ tempId: 't1', status: 'sending' });
+    const fromServer = makeMessage({ id: 'm9' });
+    expect(upsertMessage([pending], fromServer)).toHaveLength(2);
+  });
+
+  it('message:new đến trước ack: ack gộp hai bản thành một', () => {
+    const pending = makeMessage({ tempId: 't1', status: 'sending' });
+    const echoed = makeMessage({ id: 'm1', status: undefined });
+    const ack = makeMessage({ id: 'm1', tempId: 't1', status: 'sent' });
+
+    const afterEcho = upsertMessage([pending], echoed);
+    expect(afterEcho).toHaveLength(2);
+
+    const afterAck = upsertMessage(afterEcho, ack);
+    expect(afterAck).toEqual([expect.objectContaining({ id: 'm1', tempId: 't1', status: 'sent' })]);
+  });
+
+  it('message:new đến sau ack: khớp theo id, không nhân đôi', () => {
+    const acked = makeMessage({ id: 'm1', tempId: 't1', status: 'sent' });
+    const echoed = makeMessage({ id: 'm1' });
+    expect(upsertMessage([acked], echoed)).toEqual([expect.objectContaining({ status: 'sent' })]);
+  });
+
   it('field undefined của tin mới không xoá field đang có', () => {
     const pending = makeMessage({
       tempId: 't1',

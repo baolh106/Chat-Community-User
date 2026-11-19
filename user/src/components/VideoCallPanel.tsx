@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { VideoCallState } from '../hooks/useChat';
+import { debugLog } from '../utils/logger';
 
 interface VideoCallPanelProps {
   status: VideoCallState['status'];
@@ -7,8 +8,6 @@ interface VideoCallPanelProps {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   error: string | null;
-  canStartCall: boolean;
-  onStartCall: () => void | Promise<void>;
   onAcceptCall: () => void | Promise<void>;
   onRejectCall: () => void;
   onCancelCall: () => void;
@@ -57,7 +56,6 @@ const VideoStreamTile = ({
           setAudioBlocked(false);
         } catch (err) {
           if (!isMuted) setAudioBlocked(true);
-          // eslint-disable-next-line no-console
           console.warn('[user] video play blocked', label, err);
         }
       };
@@ -66,13 +64,8 @@ const VideoStreamTile = ({
         el.onloadedmetadata = playVideo;
         playVideo();
       }
-      // Log stream tracks for debugging
-      try {
-        // eslint-disable-next-line no-console
-        console.log('[user] attach stream to video element', label, 'tracks=', stream?.getTracks().map(t=>({kind:t.kind, id:t.id})), 'len=', stream?.getTracks().length);
-      } catch {}
+      debugLog('[user] attach stream to video element', label, 'tracks=', stream?.getTracks().map(t=>({kind:t.kind, id:t.id})), 'len=', stream?.getTracks().length);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('[user] failed to attach stream', label, err);
     }
   }, [stream, label, isMuted]);
@@ -87,7 +80,6 @@ const VideoStreamTile = ({
       await el.play();
       setAudioBlocked(false);
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn('[user] enable audio failed', label, err);
     }
   };
@@ -101,15 +93,12 @@ const VideoStreamTile = ({
         muted={isMuted}
         style={{ width: '100%', height: '100%', objectFit: 'cover', transform: mirrored ? 'scaleX(-1)' : undefined }}
         onCanPlay={() => {
-          // eslint-disable-next-line no-console
-          console.log('[user] video canplay', label);
+          debugLog('[user] video canplay', label);
         }}
         onPlay={() => {
-          // eslint-disable-next-line no-console
-          console.log('[user] video playing', label);
+          debugLog('[user] video playing', label);
         }}
         onError={(event) => {
-          // eslint-disable-next-line no-console
           console.error('[user] video error', label, event);
         }}
       />
@@ -142,8 +131,6 @@ export const VideoCallPanel = ({
   localStream,
   remoteStream,
   error,
-  canStartCall,
-  onStartCall,
   onAcceptCall,
   onRejectCall,
   onCancelCall,

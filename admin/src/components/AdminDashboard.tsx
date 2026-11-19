@@ -28,6 +28,7 @@ export const AdminDashboard = ({ chat }: AdminDashboardProps) => {
     setSelectedFiles,
     clearAttachment,
     sendMessage,
+    retryMessage,
     resetSession,
     status,
     statusText,
@@ -150,7 +151,7 @@ export const AdminDashboard = ({ chat }: AdminDashboardProps) => {
                   onFileChange={setSelectedFiles}
                   onClearAttachment={clearAttachment}
                   onSendMessage={sendMessage}
-                  onResetSession={resetSession}
+                  onRetryMessage={retryMessage}
                   canSend={canSend}
                   videoCall={videoCall}
                 />

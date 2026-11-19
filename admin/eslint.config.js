@@ -14,6 +14,8 @@ export default tseslint.config(
     languageOptions: { ecmaVersion: 2020, globals: globals.browser },
     plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     rules: {
+      // Nợ kỹ thuật a11y (bước 5 của Chat-Community-FE-Review.md): tạm để warn, sửa xong thì bỏ dòng này.
+      ...Object.fromEntries(Object.keys(jsxA11y.flatConfigs.recommended.rules).map((rule) => [rule, 'warn'])),
       ...reactHooks.configs.recommended.rules,
       'react-hooks/exhaustive-deps': 'error',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
