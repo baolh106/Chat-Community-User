@@ -216,9 +216,9 @@ export const MessageItem = ({ message, isMine }: MessageItemProps) => {
 
         {!hasContent && !hasAttachments && (
           <div className="message-content">
-            {isSending || message.fileName ? (
+            {isSending || message.uploadingFileName ? (
               <span style={{ fontStyle: 'italic', opacity: 0.7 }}>
-                {message.fileName ? `Processing ${message.fileName}...` : 'Sending...'}
+                {message.uploadingFileName ? `Processing ${message.uploadingFileName}...` : 'Sending...'}
               </span>
             ) : (
               'Message has no content'

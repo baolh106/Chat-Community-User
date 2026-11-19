@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { createSocket } from '../utils/socket';
 import { api } from '../utils/api';
-import type { Message, SocketPayload, ChatStatus, SocketFilePayload } from '../types';
+import type { Message, ChatStatus, SocketFilePayload } from '../types';
+
+type SocketPayload = { ok: boolean; userId?: string; reason?: string };
 
 const MAX_ATTACHMENT_SIZE_MB = 10;
 const MAX_ATTACHMENT_SIZE = MAX_ATTACHMENT_SIZE_MB * 1024 * 1024;
@@ -719,7 +721,7 @@ export const useChat = (): UseChatReturn => {
       setMessages((prev) => upsertMessage(prev, {
         tempId: payload.tempId,
         status: 'sending',
-        fileName: payload.fileName,
+        uploadingFileName: payload.fileName,
       }));
     });
 
