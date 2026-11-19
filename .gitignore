@@ -10,3 +10,4 @@ node_modules/
 # md file
 *.md
 !README.md
+!.claude/skills/**/*.md
