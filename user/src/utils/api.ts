@@ -1,39 +1,19 @@
-import type { AuthResponse } from '../types';
-
-const API_BASE = '/api';
+import { parseAuthResponse, requestJson, type AuthResult } from './http';
 
 export const api = {
-  async startSession(nickname: string, recaptchaToken?: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/auth/start`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ nickname, recaptchaToken }),
+  async startSession(nickname: string, recaptchaToken: string): Promise<AuthResult> {
+    const data = await requestJson('/auth/start', {
+      body: { nickname, recaptchaToken },
+      errorMessage: 'Lỗi khi tạo session',
     });
-
-    if (!response.ok) {
-      const body = await response.json();
-      throw new Error(body?.message || 'Lỗi khi tạo session');
-    }
-
-    return response.json();
+    return parseAuthResponse(data);
   },
 
-  async refreshSession(refreshToken: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refreshToken }),
+  async refreshSession(refreshToken: string): Promise<AuthResult> {
+    const data = await requestJson('/auth/refresh', {
+      body: { refreshToken },
+      errorMessage: 'Lỗi khi refresh session',
     });
-
-    if (!response.ok) {
-      const body = await response.json();
-      throw new Error(body?.message || 'Lỗi khi refresh session');
-    }
-
-    return response.json();
+    return parseAuthResponse(data);
   },
 };

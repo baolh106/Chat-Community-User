@@ -31,18 +31,6 @@ export type Message = {
 
 export type ChatStatus = 'idle' | 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
-export type AuthTokens = {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn?: number;
-};
-
-export type AuthResponse = {
-  data: AuthTokens;
-  message: string;
-  success: boolean;
-};
-
 export type SocketFilePayload = {
   data: string;
   name: string;

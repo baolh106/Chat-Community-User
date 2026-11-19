@@ -1,78 +1,37 @@
-import type { AuthResponse } from '../types';
-
-const API_BASE = '/api';
-
-interface AdminLoginBody {
-  password: string;
-  recaptchaToken?: string;
-}
+import { getNumber, isRecord } from './guards';
+import { parseAuthResponse, requestJson, type AuthResult } from './http';
 
 export const api = {
-  async adminLogin(password: string, recaptchaToken?: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/auth/admin/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ password, recaptchaToken }),
+  async adminLogin(password: string, recaptchaToken: string): Promise<AuthResult> {
+    const data = await requestJson('/auth/admin/login', {
+      body: { password, recaptchaToken },
+      errorMessage: 'Lỗi khi đăng nhập Admin',
     });
-
-    if (!response.ok) {
-      const body = await response.json();
-      throw new Error(body?.message || 'Lỗi khi đăng nhập Admin');
-    }
-
-    return response.json();
+    return parseAuthResponse(data);
   },
 
-  async refreshSession(refreshToken: string): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refreshToken }),
+  async refreshSession(refreshToken: string): Promise<AuthResult> {
+    const data = await requestJson('/auth/refresh', {
+      body: { refreshToken },
+      errorMessage: 'Lỗi khi refresh session',
     });
-
-    if (!response.ok) {
-      const body = await response.json();
-      throw new Error(body?.message || 'Lỗi khi refresh session');
-    }
-
-    return response.json();
-  },
-  async getUnreadCount(conversationKey: string, readerId: string, accessToken?: string) {
-    const url = `${API_BASE}/message/unread-count/${encodeURIComponent(conversationKey)}?readerId=${encodeURIComponent(
-      readerId
-    )}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        'Content-Type': 'application/json',
-      },
-    });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body?.message || 'Lỗi khi lấy unread count');
-    }
-    return response.json();
+    return parseAuthResponse(data);
   },
 
-  async markRead(conversationKey: string, readerId: string, accessToken?: string) {
-    const url = `${API_BASE}/message/mark-read`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ conversationKey, readerId }),
+  async getUnreadCount(conversationKey: string, readerId: string, accessToken: string | null) {
+    const query = new URLSearchParams({ readerId });
+    const data = await requestJson(
+      `/message/unread-count/${encodeURIComponent(conversationKey)}?${query.toString()}`,
+      { method: 'GET', accessToken, errorMessage: 'Lỗi khi lấy unread count' },
+    );
+    return (isRecord(data) && isRecord(data.data) && getNumber(data.data, 'unreadCount')) || 0;
+  },
+
+  async markRead(conversationKey: string, readerId: string, accessToken: string | null) {
+    await requestJson('/message/mark-read', {
+      body: { conversationKey, readerId },
+      accessToken,
+      errorMessage: 'Lỗi khi đánh dấu đã đọc',
     });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new Error(body?.message || 'Lỗi khi đánh dấu đã đọc');
-    }
-    return response.json();
   },
 };
