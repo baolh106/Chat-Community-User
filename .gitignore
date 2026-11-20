@@ -11,4 +11,6 @@ dist/
 # md file
 *.md
 !README.md
-!.claude/skills/**/*.md
+
+# Claude Code local config
+.claude/
