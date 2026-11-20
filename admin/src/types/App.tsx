@@ -1,1 +1,0 @@
-// File này nên bị xóa để tránh xung đột với src/App.tsx

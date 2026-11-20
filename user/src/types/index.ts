@@ -1,33 +1,35 @@
+export type AttachmentType = 'image' | 'file';
+
+export type Attachment = {
+  url: string;
+  name: string;
+  mimeType?: string;
+  size?: number;
+  type: AttachmentType;
+  isUnsafe?: boolean;
+  unsafeReason?: string;
+};
+
+export type MessageStatus = 'sending' | 'sent' | 'failed';
+
 export type Message = {
+  /** Id do server cấp. */
+  id?: string;
+  /** Id tạm do client tạo khi gửi, dùng để khớp ack với tin optimistic. */
+  tempId?: string;
+  status?: MessageStatus;
   content: string | null;
   sender: string;
   receiver: string;
   createdAt: string;
-  imageURL?: string;
-  fileURL?: string;
-  fileDownloadURL?: string | null;
-  fileName?: string;
-  fileMimeType?: string;
-  fileSize?: number;
-  fileDriveId?: string;
-  attachmentType?: 'image' | 'file';
-  attachments?: Array<{
-    url: string;
-    name: string;
-    mimeType?: string;
-    size?: number;
-    type: 'image' | 'file';
-    isUnsafe?: boolean; // Added for unsafe content detection
-    unsafeReason?: string; // Added for unsafe content detection
-  }>;
+  attachments?: Attachment[];
   hasAttachments?: boolean;
+  /** Tên file server đang xử lý (giữa `message:uploading` và ack). */
+  uploadingFileName?: string;
+  isRead?: boolean;
 };
 
-export type SocketPayload = {
-  ok: boolean;
-  userId?: string;
-  reason?: string;
-};
+export type ChatStatus = 'idle' | 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
 export type SocketFilePayload = {
   data: string;
@@ -35,14 +37,4 @@ export type SocketFilePayload = {
   mimeType: string;
 };
 
-export type ChatStatus = 'idle' | 'loading' | 'connecting' | 'connected' | 'disconnected' | 'error';
-
-export type AuthResponse = {
-  data: {
-    accessToken: string;
-    refreshToken: string;
-    expiresIn: number;
-  };
-  message: string;
-  success: boolean;
-};
+export type * from './socket';

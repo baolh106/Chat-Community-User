@@ -1,5 +1,6 @@
 node_modules/
 .vite/
+dist/
 .env
 
 .DS_Store
@@ -10,3 +11,6 @@ node_modules/
 # md file
 *.md
 !README.md
+
+# Claude Code local config
+.claude/

@@ -484,3 +484,23 @@ button:disabled {
     min-height: 72px;
   }
 }
+
+.message-failed {
+  color: #ef4444;
+}
+
+.message-retry {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.message-retry:hover,
+.message-retry:focus-visible {
+  background: rgba(239, 68, 68, 0.08);
+}

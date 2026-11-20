@@ -37,7 +37,9 @@ pipeline {
                 echo '=== Phát hiện thay đổi ở folder USER: Build frontend ==='
                 dir("${env.USER_DIR}") {
                     sh "cp ${env.DEPLOY_DIR}/${env.USER_DIR}/.env ./"
-                    sh "npm run build"                
+                    sh "npm run lint"
+                    sh "npm test"
+                    sh "npm run build"
                 }
             }
         }
@@ -73,7 +75,9 @@ pipeline {
                 echo '=== Phát hiện thay đổi ở folder ADMIN: Build frontend ==='
                 dir("${env.ADMIN_DIR}") {
                     sh "cp ${env.DEPLOY_DIR}/${env.ADMIN_DIR}/.env ./"
-                    sh "npm run build"                
+                    sh "npm run lint"
+                    sh "npm test"
+                    sh "npm run build"
                 }
             }
         }

@@ -17,6 +17,7 @@ interface ChatPanelProps {
   onFileChange: (files: File[]) => void;
   onClearAttachment: () => void;
   onSendMessage: () => void | Promise<void>;
+  onRetryMessage: (tempId: string) => void;
   onResetSession: () => void;
   canSend: boolean;
   videoCall: VideoCallState;
@@ -34,6 +35,7 @@ export const ChatPanel = ({
   onFileChange,
   onClearAttachment,
   onSendMessage,
+  onRetryMessage,
   onResetSession,
   canSend,
   videoCall,
@@ -86,8 +88,6 @@ export const ChatPanel = ({
           localStream={videoCall.localStream}
           remoteStream={videoCall.remoteStream}
           error={videoCall.error}
-          canStartCall={videoCall.canStartCall}
-          onStartCall={() => videoCall.startCall('admin')}
           onAcceptCall={videoCall.acceptCall}
           onRejectCall={videoCall.rejectCall}
           onCancelCall={videoCall.cancelCall}
@@ -95,7 +95,7 @@ export const ChatPanel = ({
         />
       )}
 
-      <MessageList messages={messages} userId={userId} />
+      <MessageList messages={messages} userId={userId} onRetry={onRetryMessage} />
 
       <MessageComposer
         draft={draft}
@@ -108,7 +108,10 @@ export const ChatPanel = ({
         canSend={canSend}
       />
 
-      {error && <div className="error-box">{error}</div>}
+      {error && <div className="error-box" role="alert">{error}</div>}
+      {videoCall.error && videoCall.status === 'idle' && (
+        <div className="error-box" role="alert">{videoCall.error}</div>
+      )}
     </div>
   );
 };

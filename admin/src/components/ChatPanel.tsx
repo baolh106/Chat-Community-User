@@ -16,7 +16,7 @@ interface ChatPanelProps {
   onFileChange: (files: File[]) => void;
   onClearAttachment: () => void;
   onSendMessage: () => void | Promise<void>;
-  onResetSession: () => void;
+  onRetryMessage: (tempId: string) => void;
   canSend: boolean;
   videoCall: VideoCallState;
 }
@@ -33,7 +33,7 @@ export const ChatPanel = ({
   onFileChange,
   onClearAttachment,
   onSendMessage,
-  onResetSession,
+  onRetryMessage,
   canSend,
   videoCall,
 }: ChatPanelProps) => {
@@ -110,7 +110,7 @@ export const ChatPanel = ({
         </button>
       )}
 
-      <MessageList messages={messages} userId={userId} />
+      <MessageList messages={messages} userId={userId} onRetry={onRetryMessage} />
 
       <MessageComposer
         draft={draft}
@@ -123,7 +123,10 @@ export const ChatPanel = ({
         canSend={canSend}
       />
 
-      {error && <div className="error-box">{error}</div>}
+      {error && <div className="error-box" role="alert">{error}</div>}
+      {videoCall.error && !hasActiveVideoCall && (
+        <div className="error-box" role="alert">{videoCall.error}</div>
+      )}
     </div>
   );
 };
